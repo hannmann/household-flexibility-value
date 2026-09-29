@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "household-flexibility-value"
+version = "0.1.0"
+description = "What PV, a home battery and a flexible heat pump are worth on a German dynamic tariff"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = {text = "MIT"}
+authors = [{name = "Hannes"}]
+dependencies = [
+  "matplotlib==3.10.9",
+  "numpy==2.4.4",
+  "pandas==3.0.2",
+  "pyyaml==6.0.3",
+  "requests>=2.31",
+  "scipy==1.17.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.15"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+household_flex = ["data/*.csv"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]

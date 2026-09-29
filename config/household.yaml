@@ -1,0 +1,80 @@
+# Household inputs and assumptions for the first model run.
+# Every value marked "assumed" should be replaced as real numbers arrive.
+
+location:
+  postcode: "14197 Berlin"
+  latitude: 52.475
+  longitude: 13.295
+  timezone: Europe/Berlin
+  data_year: 2025
+
+household:
+  electricity_kwh_per_year: 3500      # assumed: typical 3-person household, excl. heat pump
+  space_heat_kwh_per_year: 11000      # assumed: detached house
+  hot_water_heat_kwh_per_year: 2000   # assumed
+
+building:
+  heating_limit_c: 15.0     # outdoor temperature above which no space heating is needed
+  setpoint_c: 21.0
+  comfort_band_k: 1.0       # indoor temperature may move +/- 1 K around the setpoint
+  time_constant_h: 60.0     # assumed: how slowly the house cools down (C / H)
+
+heat_pump:
+  type: ground_source       # borehole, installed 2010 (known)
+  thermal_capacity_kw: 7.0  # assumed
+  carnot_efficiency: 0.5    # assumed; gives a seasonal COP of about 3.5-4
+  source_temp_c: 5.0        # borehole brine temperature, roughly stable over the year
+  flow_temp_mild_c: 32.0    # heating curve: flow temperature at the heating limit
+  flow_temp_cold_c: 45.0    # heating curve: flow temperature at -12 C outdoors
+  hot_water_flow_temp_c: 55.0
+  flexible: true            # modulating and externally controllable (assumed)
+  min_on_fraction: 0.6      # only used when flexible is false: on/off operation
+
+hot_water_tank:
+  capacity_kwh_th: 4.0      # assumed: ~300 l between 45 and 55 C
+  loss_per_hour: 0.005
+
+pv:
+  peak_kw: 8.0              # assumed: east-west rows on ~45 m2 of flat roof
+  tilt_deg: 10
+  temperature_coefficient_per_k: -0.0035
+  noct_c: 45.0
+  system_losses: 0.14       # inverter, wiring, soiling, mismatch
+
+battery:
+  capacity_kwh: 10.0        # assumed
+  power_kw: 5.0
+  round_trip_efficiency: 0.90
+  wear_cost_eur_per_kwh: 0.02   # per kWh discharged
+  grid_charging: true           # MiSpeL flat-rate option (from 1 Oct 2026)
+  grid_charging_kwh_per_kwp_year: 500
+
+tariffs:
+  fixed_price_ct_per_kwh: 35.0          # assumed current contract, gross
+  dynamic:
+    fixed_parts_ct_per_kwh: 21.8        # grid fees, taxes and levies incl. VAT (BDEW 2026 average)
+    supplier_markup_ct_per_kwh: 1.5     # net
+    vat: 0.19
+  smart_meter_eur_per_year: 50.0        # price cap with a controllable device
+  feed_in:
+    regime: fixed                       # "fixed" (commissioned by 31 Dec 2026) or "market" (planned reform)
+    fixed_ct_per_kwh: 7.70              # partial feed-in up to 10 kWp, Aug 2026 - Jan 2027
+    market_bonus_ct_per_kwh: 1.5        # planned direct-marketing bonus under the reform
+    no_payment_at_negative_prices: true # Solarspitzengesetz
+    export_cap_share_of_peak: null      # 0.6 without smart meter; null = no cap
+
+investment:                    # assumed rough market ranges; replace with quotes
+  pv_eur_per_kwp: 1400
+  battery_eur_per_kwh: 600
+  energy_management_eur: 500
+  pv_lifetime_years: 20
+  battery_lifetime_years: 12
+  battery_replacement_cost_share: 0.6
+  pv_om_share_per_year: 0.01
+  pv_degradation_per_year: 0.005
+  discount_rate: 0.03
+
+control:
+  price_publication_hour_local: 13   # next day's prices are known from 13:00
+  min_horizon_h: 12
+  terminal_value_share: 0.9          # value of energy left in storage at the horizon end

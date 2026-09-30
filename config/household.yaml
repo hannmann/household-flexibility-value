@@ -16,7 +16,7 @@ household:
 building:
   heating_limit_c: 15.0     # outdoor temperature above which no space heating is needed
   setpoint_c: 21.0
-  comfort_band_k: 1.0       # indoor temperature may move +/- 1 K around the setpoint
+  max_preheat_k: 1.5        # controllers may heat up to 1.5 K above the setpoint, never below it
   time_constant_h: 60.0     # assumed: how slowly the house cools down (C / H)
 
 heat_pump:

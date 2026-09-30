@@ -43,6 +43,14 @@ def test_no_grid_charging_when_disabled() -> None:
     assert flows["grid_to_battery_kw"].sum() < TOL
 
 
+def test_optimiser_never_saves_by_running_the_house_colder() -> None:
+    inputs, cfg = inputs_for()
+    rules = run_scenario(BY_KEY["S4"], inputs, cfg)["flows"]
+    optimised = run_scenario(BY_KEY["S6"], inputs, cfg)["flows"]
+    assert optimised["building_kwh"].min() >= -TOL
+    assert optimised["building_kwh"].mean() >= rules["building_kwh"].mean() - TOL
+
+
 def test_optimiser_is_not_worse_than_rules_on_the_same_hardware() -> None:
     inputs, cfg = inputs_for()
     rules = run_scenario(BY_KEY["S4"], inputs, cfg)["annual_cost_eur"]

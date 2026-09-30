@@ -48,7 +48,7 @@ class Household:
     grid_charging_budget_kwh: float
     building_capacity_kwh_per_k: float
     building_decay: float           # per-hour retention of stored building heat
-    building_band_kwh: float
+    building_max_kwh: float         # pre-heating headroom above the setpoint; floor is 0
     tank_capacity_kwh: float
     tank_retention: float
     hp_thermal_kw: float
@@ -74,7 +74,7 @@ class Household:
             grid_charging_budget_kwh=budget,
             building_capacity_kwh_per_k=capacity_per_k,
             building_decay=float(np.exp(-1.0 / tau)),
-            building_band_kwh=capacity_per_k * cfg.building.comfort_band_k,
+            building_max_kwh=capacity_per_k * cfg.building.max_preheat_k,
             tank_capacity_kwh=cfg.hot_water_tank.capacity_kwh_th,
             tank_retention=1.0 - cfg.hot_water_tank.loss_per_hour,
             hp_thermal_kw=cfg.heat_pump.thermal_capacity_kw,
@@ -114,9 +114,11 @@ def realise(sp: Setpoints, state: State, hh: Household, actual: dict, export_pri
         tank = 0.0
     tank = min(tank, hh.tank_capacity_kwh)
 
-    # Building: below the comfort band the thermostat adds heat within the pump's capacity.
+    # Building: below the setpoint the thermostat adds heat within the pump's capacity.
+    # Every controller keeps the same minimum comfort, so savings never come from a
+    # colder house; flexibility comes only from pre-heating above the setpoint.
     building = hh.building_decay * state.building_kwh + cop_sp * hp_sp - actual["space_heat_kw"]
-    lower, upper = -hh.building_band_kwh, hh.building_band_kwh
+    lower, upper = 0.0, hh.building_max_kwh
     deficit = 0.0
     if building < lower:
         spare_thermal = max(hh.hp_thermal_kw - cop_sp * hp_sp - cop_hw * hp_hw, 0.0)

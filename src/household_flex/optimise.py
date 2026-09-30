@@ -156,9 +156,9 @@ class OptimisingController:
         add(k + hours, base_trade + hours + 1, 1.0)
         b_ub.append(np.full(n, hh.capacity_kwh))
         k += n
-        add(k + hours, base_s + hours + 1, -1.0)       # S + slack >= -band
+        add(k + hours, base_s + hours + 1, -1.0)       # S + slack >= 0: never below setpoint
         add(k + hours, base_slack + hours, -1.0)
-        b_ub.append(np.full(n, hh.building_band_kwh))
+        b_ub.append(np.zeros(n))
         k += n
         if hh.export_cap_kw is not None:
             add(k + hours, f("u_exp"), 1.0)
@@ -185,7 +185,7 @@ class OptimisingController:
                 upper[f(name)] = 0.0
         upper[base_soc:base_soc + n + 1] = hh.capacity_kwh
         lower[base_s:base_s + n + 1] = -np.inf
-        upper[base_s:base_s + n + 1] = hh.building_band_kwh
+        upper[base_s:base_s + n + 1] = hh.building_max_kwh
         upper[base_w:base_w + n + 1] = hh.tank_capacity_kwh
         lower[base_soc] = upper[base_soc] = state.soc_kwh
         lower[base_s] = upper[base_s] = state.building_kwh

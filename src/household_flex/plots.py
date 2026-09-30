@@ -75,14 +75,16 @@ def cost_bridge(scenarios: pd.DataFrame, path: Path) -> None:
     ax.set_ylim(0, cost.max() * 1.12)
     ax.set_ylabel("Annual energy cost (electricity incl. heat pump)", color=INK_2)
 
-    hardware = cost["S0"] - cost["S3"]
+    pv = cost["S0"] - cost["S2"]
+    battery = cost["S2"] - cost["S3"]
     control = cost["S3"] - cost["S5"]
     fig.suptitle(
-        f"PV and battery cut the annual bill by {_euro(hardware)}; "
-        f"dynamic tariff and smart control add {_euro(control)}",
+        f"PV saves {_euro(pv)} a year; the battery adds {_euro(battery)}, "
+        f"dynamic tariff + smart control {_euro(control)}",
         x=0.01, ha="left", fontsize=13, color=INK, fontweight="bold",
     )
-    fig.text(0.01, 0.905, "Simulated year, 8 kWp PV, 10 kWh battery, ground-source heat pump",
+    fig.text(0.01, 0.905, "Berlin 14197, 2025 weather and prices · 8 kWp PV, 10 kWh battery, "
+             "ground-source heat pump · working assumptions, not measured consumption",
              color=INK_2, fontsize=9.5)
     fig.tight_layout(rect=(0, 0, 1, 0.9))
     path.parent.mkdir(parents=True, exist_ok=True)

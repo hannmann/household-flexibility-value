@@ -1,0 +1,21 @@
+case,scenario,label,battery_kwh,annual_cost_eur,investment_eur,first_year_saving_eur,npv_eur,payback_years
+base,S2,PV,0.0,1400.59,11200.0,1129.33,3239.29,15.0
+base,S3,PV + battery,10.0,1016.57,17700.0,1513.36,-235.47,
+base,S4,"All, simple rules",10.0,1073.2,17700.0,1456.73,-1043.09,
+base,S5,"All, optimised on forecasts",10.0,983.23,17700.0,1546.7,239.94,20.0
+base,S6,"All, perfect foresight",10.0,897.72,17700.0,1632.21,1459.39,19.0
+battery_0kwh,S5,"All, optimised on forecasts",0.0,1243.38,11200.0,1286.55,5481.41,12.0
+battery_5kwh,S5,"All, optimised on forecasts",5.0,1025.03,14700.0,1504.9,3869.58,15.0
+battery_15kwh,S5,"All, optimised on forecasts",15.0,966.88,20700.0,1563.05,-3752.6,
+no_grid_charging,S5,"All, optimised on forecasts",10.0,976.58,17700.0,1553.35,334.77,20.0
+feed_in_after_reform,S2,PV,0.0,1419.33,11200.0,1110.6,2972.17,15.0
+feed_in_after_reform,S3,PV + battery,10.0,1051.07,17700.0,1478.86,-727.5,
+feed_in_after_reform,S5,"All, optimised on forecasts",10.0,904.46,17700.0,1625.46,1363.23,19.0
+export_cap_60pct,S5,"All, optimised on forecasts",10.0,984.71,17700.0,1545.22,218.86,20.0
+pv_yield_minus_10pct,S2,PV,0.0,1466.91,11200.0,1063.02,2293.6,16.0
+pv_yield_minus_10pct,S3,PV + battery,10.0,1097.18,17700.0,1432.75,-1385.13,
+pv_yield_minus_10pct,S5,"All, optimised on forecasts",10.0,1069.1,17700.0,1460.83,-984.66,
+battery_0kwh_pv_minus_10pct,S5,"All, optimised on forecasts",0.0,1321.44,11200.0,1208.49,4368.12,13.0
+battery_0kwh_after_reform,S5,"All, optimised on forecasts",0.0,1244.96,11200.0,1284.97,5458.84,12.0
+battery_5kwh_after_reform,S5,"All, optimised on forecasts",5.0,995.89,14700.0,1534.04,4285.18,15.0
+heat_pump_on_off,S5,"All, optimised on forecasts",10.0,1008.66,17700.0,1521.27,-122.64,

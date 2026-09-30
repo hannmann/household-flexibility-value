@@ -42,7 +42,37 @@ annual savings into net present value and payback.
 | … + 15 kWh battery | €967 | €1,563 | €20,700 | −€3,753 | never |
 
 All results: [scenarios](reports/scenarios.csv), [every run incl. sensitivities](reports/all_runs.csv),
-[investment appraisal](reports/investment.csv), [battery value](reports/battery_value.csv).
+[investment appraisal](reports/investment.csv), [battery value](reports/battery_value.csv),
+[price structure](reports/price_structure.csv).
+
+## Why smart control adds so little here
+
+Optimised control lowers the annual cost by €90 over simple rules on the same hardware. With
+perfect forecasts it would be €175. Four things cap it for this house:
+
+- **Most of the household price is fixed.** Of the average 34.2 ct/kWh on the dynamic tariff,
+  21.8 ct (64%) are grid fees, taxes and levies that are the same in every hour. Only the
+  exchange part moves, so the household price varies within a day by 17 ct/kWh on average in
+  summer and only 10 ct/kWh in winter.
+- **Simple rules already capture most of the value.** A battery run by the usual inverter rule
+  (charge from solar surplus, discharge when the house needs power) saves €384 a year. Better
+  timing adds only the €90 above.
+- **The heat pump has little room to shift, and more room would not help.** It may pre-heat the
+  house by up to 1.5 K and must never let it cool below 21 °C. Restricting it to on/off
+  operation costs only €26 a year, and a three times larger hot-water tank adds nothing. The
+  limit is not flexibility but the small price differences in winter, when it uses the most
+  power. A 20% more efficient heat pump would save €173 a year in the optimised setup, but
+  optimisation would still add only €72 of that.
+- **Negative prices mostly coincide with the household's own solar surplus.** 89% of the 576
+  negative-price hours in 2025 fall when the roof already produces more than the house uses, so
+  the battery is filled with free solar power anyway. Because the fixed charges remain, the
+  dynamic tariff still cost 22.3 ct/kWh on average in those hours.
+
+Control matters more where one of these limits is lifted. After the planned feed-in reform,
+exports are paid at market prices and the battery can time them: the optimised setup then costs
+€79 a year less than under the fixed feed-in tariff. It would also matter more with a large
+flexible load such as an electric car. And a supplier running many households can use flexibility
+in markets a single home cannot reach.
 
 ## Approach
 

@@ -11,7 +11,7 @@ import pandas as pd
 from . import config, finance
 from .inputs import build_inputs, read_snapshot
 from .plots import cost_bridge
-from .scenarios import BY_KEY, SCENARIOS, run_scenario
+from .scenarios import BY_KEY, SCENARIOS, price_frame, run_scenario
 
 REPORT_COLUMNS = (
     "scenario", "label", "annual_cost_eur", "import_cost_eur", "export_revenue_eur",
@@ -39,7 +39,13 @@ SENSITIVITIES: dict[str, tuple[dict[str, Any], tuple[str, ...]]] = {
         {"battery.capacity_kwh": 5.0, "battery.power_kw": 2.5,
          "tariffs.feed_in.regime": "market"}, ("S5",)),
     "heat_pump_on_off": ({"heat_pump.flexible": False}, ("S5",)),
+    # A modern heat pump on the same borehole: about 20% more efficient.
+    "heat_pump_modern": ({"heat_pump.carnot_efficiency": 0.6}, ("S0", "S4", "S5")),
+    "heat_pump_modern_big_tank": (
+        {"heat_pump.carnot_efficiency": 0.6, "hot_water_tank.capacity_kwh_th": 12.0}, ("S5",)),
 }
+# Cases that change the existing heat pump, which the hardware appraisal does not price.
+NOT_APPRAISED = ("heat_pump_modern", "heat_pump_modern_big_tank")
 
 
 def _job(args: tuple[Path, Path, dict[str, Any], str]) -> dict:
@@ -82,7 +88,7 @@ def run_all(snapshot: Path, reports: Path, config_path: Path = config.DEFAULT_CO
     appraisal_rows = []
     for _, row in results.iterrows():
         scenario = BY_KEY[row["scenario"]]
-        if not scenario.pv or scenario.trading:
+        if not scenario.pv or scenario.trading or row["case"] in NOT_APPRAISED:
             continue
         appraisal_rows.append(
             {
@@ -99,6 +105,7 @@ def run_all(snapshot: Path, reports: Path, config_path: Path = config.DEFAULT_CO
 
     reports.mkdir(parents=True, exist_ok=True)
     battery_value.round(1).to_csv(reports / "battery_value.csv", index=False)
+    price_structure(snapshot, cfg).to_csv(reports / "price_structure.csv", index=False)
     scenarios.round(3).to_csv(reports / "scenarios.csv", index=False)
     results.drop(columns=["label"]).round(3).to_csv(reports / "all_runs.csv", index=False)
     appraisal.round(2).to_csv(reports / "investment.csv", index=False)
@@ -136,3 +143,31 @@ def _battery_value(results: pd.DataFrame, cfg) -> pd.DataFrame:
                 "assumed_eur_per_kwh": cfg.investment.battery_eur_per_kwh,
             })
     return pd.DataFrame(rows)
+
+
+def price_structure(snapshot: Path, cfg) -> pd.DataFrame:
+    """Facts about the household price that limit what any optimiser can earn."""
+    inputs = build_inputs(read_snapshot(snapshot), cfg)
+    retail_ct = price_frame(inputs, cfg, dynamic=True)["import"] * 100.0
+    local = inputs.index.tz_convert(cfg.location.timezone)
+    daily = pd.DataFrame({"ct": retail_ct.to_numpy(), "date": local.date, "month": local.month})
+    daily = daily.groupby("date").agg(spread=("ct", lambda s: s.max() - s.min()),
+                                      month=("month", "first"))
+    winter = daily["month"].isin((11, 12, 1, 2))
+    summer = daily["month"].isin((5, 6, 7, 8))
+    negative = inputs["spot_eur_mwh"] < 0.0
+    heat_pump_kw = (inputs["space_heat_kw"] / inputs["cop_space"]
+                    + inputs["hot_water_kw"] / inputs["cop_hot_water"])
+    surplus = inputs["pv_kw"] - inputs["household_kw"] - heat_pump_kw
+    facts = {
+        "mean_dynamic_price_ct_per_kwh": retail_ct.mean(),
+        "fixed_parts_ct_per_kwh": cfg.tariffs.dynamic.fixed_parts_ct_per_kwh,
+        "fixed_share_of_price": cfg.tariffs.dynamic.fixed_parts_ct_per_kwh / retail_ct.mean(),
+        "daily_price_spread_winter_ct": daily.loc[winter, "spread"].mean(),
+        "daily_price_spread_summer_ct": daily.loc[summer, "spread"].mean(),
+        "negative_price_hours": int(negative.sum()),
+        "mean_dynamic_price_in_negative_hours_ct": retail_ct[negative].mean(),
+        "share_of_negative_hours_with_own_pv_surplus": float((surplus[negative] > 0).mean()),
+    }
+    return pd.DataFrame({"fact": list(facts),
+                         "value": [round(float(v), 3) for v in facts.values()]})

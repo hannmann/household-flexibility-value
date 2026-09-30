@@ -29,6 +29,15 @@ SENSITIVITIES: dict[str, tuple[dict[str, Any], tuple[str, ...]]] = {
     "no_grid_charging": ({"battery.grid_charging": False}, ("S5",)),
     "feed_in_after_reform": ({"tariffs.feed_in.regime": "market"}, ("S2", "S3", "S5")),
     "export_cap_60pct": ({"tariffs.feed_in.export_cap_share_of_peak": 0.6}, ("S5",)),
+    # 2025 was unusually sunny; 10% less PV output approximates an average year.
+    "pv_yield_minus_10pct": ({"pv.system_losses": 1.0 - 0.86 * 0.9}, ("S2", "S3", "S5")),
+    "battery_0kwh_pv_minus_10pct": (
+        {"battery.capacity_kwh": 0.0, "pv.system_losses": 1.0 - 0.86 * 0.9}, ("S5",)),
+    "battery_0kwh_after_reform": (
+        {"battery.capacity_kwh": 0.0, "tariffs.feed_in.regime": "market"}, ("S5",)),
+    "battery_5kwh_after_reform": (
+        {"battery.capacity_kwh": 5.0, "battery.power_kw": 2.5,
+         "tariffs.feed_in.regime": "market"}, ("S5",)),
     "heat_pump_on_off": ({"heat_pump.flexible": False}, ("S5",)),
 }
 
@@ -86,10 +95,44 @@ def run_all(snapshot: Path, reports: Path, config_path: Path = config.DEFAULT_CO
             }
         )
     appraisal = pd.DataFrame(appraisal_rows)
+    battery_value = _battery_value(results, cfg)
 
     reports.mkdir(parents=True, exist_ok=True)
+    battery_value.round(1).to_csv(reports / "battery_value.csv", index=False)
     scenarios.round(3).to_csv(reports / "scenarios.csv", index=False)
     results.drop(columns=["label"]).round(3).to_csv(reports / "all_runs.csv", index=False)
     appraisal.round(2).to_csv(reports / "investment.csv", index=False)
     cost_bridge(scenarios, reports / "cost_bridge.png")
-    return {"scenarios": scenarios, "all_runs": results, "investment": appraisal}
+    return {"scenarios": scenarios, "all_runs": results, "investment": appraisal,
+            "battery_value": battery_value}
+
+
+# Optimised (S5) runs that differ only in battery size, grouped by the rest of the setup.
+BATTERY_FAMILIES: dict[str, dict[int, str]] = {
+    "fixed feed-in": {0: "battery_0kwh", 5: "battery_5kwh", 10: "base", 15: "battery_15kwh"},
+    "feed-in after reform": {0: "battery_0kwh_after_reform", 5: "battery_5kwh_after_reform",
+                             10: "feed_in_after_reform"},
+    "10% less sun": {0: "battery_0kwh_pv_minus_10pct", 10: "pv_yield_minus_10pct"},
+}
+
+
+def _battery_value(results: pd.DataFrame, cfg) -> pd.DataFrame:
+    """What a battery adds on top of PV with optimised control, and what it may cost."""
+    s5 = results[results["scenario"] == "S5"].set_index("case")["annual_cost_eur"]
+    rows = []
+    for family, cases in BATTERY_FAMILIES.items():
+        if not set(cases.values()) <= set(s5.index):
+            continue
+        without = float(s5[cases[0]])
+        for kwh, case in cases.items():
+            if kwh == 0:
+                continue
+            extra = without - float(s5[case])
+            rows.append({
+                "setup": family,
+                "battery_kwh": kwh,
+                "extra_saving_eur_per_year": extra,
+                "breakeven_eur_per_kwh": finance.battery_breakeven_eur_per_kwh(extra, cfg, kwh),
+                "assumed_eur_per_kwh": cfg.investment.battery_eur_per_kwh,
+            })
+    return pd.DataFrame(rows)

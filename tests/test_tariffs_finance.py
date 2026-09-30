@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 
 import pandas as pd
 
-from household_flex import config
+from household_flex import config, finance
 from household_flex.finance import appraise, investment_eur
 from household_flex.tariffs import export_price, import_price
 
@@ -45,3 +46,13 @@ def test_large_savings_pay_back_within_lifetime() -> None:
     result = appraise(3000.0, cfg, pv=True, battery_kwh=0.0)
     assert result["npv_eur"] > 0
     assert 1 <= result["payback_years"] <= 6
+
+
+def test_battery_breakeven_price_gives_zero_npv() -> None:
+    cfg = config.load()
+    price = finance.battery_breakeven_eur_per_kwh(218.0, cfg, 5.0)
+    inv = SimpleNamespace(**{**vars(cfg.investment), "battery_eur_per_kwh": price})
+    probe = SimpleNamespace(**{**vars(cfg), "investment": inv,
+                               "pv": SimpleNamespace(peak_kw=0.0)})
+    assert abs(appraise(218.0, probe, False, 5.0)["npv_eur"]) < 1e-6
+    assert 300.0 < price < 450.0  # hand calculation: about 375 EUR/kWh

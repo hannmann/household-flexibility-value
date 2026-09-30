@@ -17,6 +17,24 @@ def investment_eur(cfg: SimpleNamespace, pv: bool, battery_kwh: float) -> float:
     return cost
 
 
+def battery_breakeven_eur_per_kwh(extra_saving_eur: float, cfg: SimpleNamespace,
+                                  battery_kwh: float) -> float:
+    """Installed battery price (EUR/kWh) at which adding the battery has zero NPV.
+
+    ``extra_saving_eur`` is the first-year saving of the setup with the battery
+    over the same setup without it. NPV is linear in the battery price, so two
+    evaluations give the break-even point.
+    """
+    def npv(price: float) -> float:
+        inv = SimpleNamespace(**{**vars(cfg.investment), "battery_eur_per_kwh": price})
+        probe = SimpleNamespace(**{**vars(cfg), "investment": inv,
+                                   "pv": SimpleNamespace(peak_kw=0.0)})
+        return appraise(extra_saving_eur, probe, False, battery_kwh)["npv_eur"]
+
+    low, high = npv(0.0), npv(1000.0)
+    return float(1000.0 * low / (low - high))
+
+
 def appraise(annual_saving_eur: float, cfg: SimpleNamespace, pv: bool, battery_kwh: float) -> dict:
     """Cash flows over the PV lifetime for a first-year saving versus today.
 

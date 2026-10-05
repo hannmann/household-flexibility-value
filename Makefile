@@ -1,4 +1,4 @@
-.PHONY: install data test lint analysis quick clean
+.PHONY: install data test lint analysis quick houses clean
 
 PYTHON ?= python3
 export PYTHONPATH := src
@@ -23,3 +23,6 @@ quick:
 
 clean:
 	rm -rf .pytest_cache .ruff_cache tests/.cache_synthetic_2024.csv
+
+houses: test
+	$(PYTHON) scripts/run_houses.py

@@ -6,7 +6,8 @@ from the hardware, and how much from controlling it well?
 
 The model simulates one full year (2025, hourly) for eight setups, from today's house on a fixed
 tariff to an optimised house with PV, battery and a price-aware heat pump. It then turns the
-annual savings into net present value and payback.
+annual savings into net present value and payback, and checks the results against 27 households
+whose consumption was measured.
 
 ## Main findings
 
@@ -31,6 +32,10 @@ annual savings into net present value and payback.
   18 ct/kWh). A 5 kWh battery then breaks even at about €480/kWh.
 - **Better forecasts would add €58 a year, full exchange trading at most €166 more.** Both are
   upper bounds. Trading assumes fees on stored and re-exported power were waived.
+- **The results hold for 27 households with measured consumption, and the battery looks weaker
+  still.** PV pays in 26 of them and PV with a dynamic tariff in all 27. A 5 kWh battery breaks
+  even at a median €276/kWh, partly because real household load is hard to forecast
+  ([details](#do-the-results-hold-for-real-households)).
 
 | Setup (8 kWp PV where present) | Annual cost | Saving vs. today | Investment | NPV (20 y) | Discounted payback |
 |---|---:|---:|---:|---:|---:|
@@ -43,7 +48,7 @@ annual savings into net present value and payback.
 
 All results: [scenarios](reports/scenarios.csv), [every run incl. sensitivities](reports/all_runs.csv),
 [investment appraisal](reports/investment.csv), [battery value](reports/battery_value.csv),
-[price structure](reports/price_structure.csv).
+[price structure](reports/price_structure.csv), [measured households](reports/houses.csv).
 
 ## Why smart control adds so little here
 
@@ -74,12 +79,58 @@ exports are paid at market prices and the battery can time them: the optimised s
 flexible load such as an electric car. And a supplier running many households can use flexibility
 in markets a single home cannot reach.
 
+## Do the results hold for real households?
+
+The main analysis uses one assumed household with a standard load profile. To test it, the same
+comparison was re-run for 27 single-family houses with ground-coupled heat pumps whose household
+and heat-pump electricity were metered every hour in 2019 ([WPuQ field study](data/wpuq/README.md)).
+Each house keeps the roof, PV system, tariffs and 2025 Berlin prices of the main analysis. Its
+household load is its measured load, and its heat demand is set so that the modelled heat pump
+uses as much electricity as the real one did. The optimiser no longer knows the household load in
+advance: it plans with the average of the same hour on the seven days before yesterday.
+
+![Value per measured household](reports/houses.png)
+
+| Per house | Median of 27 houses | 10th–90th percentile | Assumed household |
+|---|---:|---:|---:|
+| Household electricity | 3,058 kWh | 2,030–3,991 kWh | 3,500 kWh |
+| Heat-pump electricity | 4,123 kWh | 2,110–9,650 kWh | 3,728 kWh |
+| PV: NPV over 20 years | +€3,179 | +€476 to +€5,266 | +€3,239 |
+| PV + dynamic tariff + smart heat pump: NPV | +€5,604 | +€2,614 to +€8,476 | +€5,481 |
+| 5 kWh battery on top: extra saving | €171 a year | €127–238 | €235 |
+| 5 kWh battery: break-even price | €276/kWh | €186–412/kWh | €406/kWh |
+
+- **PV and the dynamic tariff hold up.** PV has a positive NPV in 26 of 27 houses. The exception
+  is a one-person household that uses 1,150 kWh a year. PV with a dynamic tariff and a
+  price-aware heat pump pays in all 27. The more electricity a house uses, the more PV saves.
+- **The battery case gets weaker.** A 5 kWh battery adds a median €171 a year and would have to
+  cost less than €276/kWh installed. Even the best house stays below €480/kWh. Part of the gap to
+  the assumed household is that real household load is hard to predict a day ahead: in the
+  median house, the forecast is off by 48% of the average hourly load. Knowing the load in
+  advance would be worth €33 a year there. The rest comes mostly from lower consumption, since
+  the battery earns more in houses that use more.
+- **The smooth standard profile was not the problem.** Real household load is spiky: its peak
+  hour is about 9 times the average hour, against 2 times in the standard profile. Yet for the
+  same annual consumption, the standard profile gives almost the same PV self-consumption (a
+  median 30% either way) and PV saving (a median €11 a year apart), and a battery run by simple
+  rules saves about the same. At hourly resolution, how much a house uses matters far more than
+  the shape of its load.
+- **Four houses used much more heat-pump electricity than their size suggests** (hollow in the
+  figure), most likely because the backup heater ran often. Leaving them out changes little:
+  medians of +€2,878 for PV, +€5,025 for the best setup and €290/kWh for the battery.
+
+All per-house results: [houses](reports/houses.csv), [summary](reports/houses_summary.csv),
+[every run](reports/houses_all_runs.csv).
+
 ## Approach
 
 - **Data:** 2025 German day-ahead prices from [SMARD](https://www.smard.de) (15-minute prices from
   October averaged to hours) and hourly weather for Berlin 14197 from
   [Open-Meteo](https://open-meteo.com): temperature, irradiance on east- and west-facing panels,
   and the same weather as forecast the day before. See `data/`.
+- **Measured households:** hourly household and heat-pump electricity of 27 houses near Hameln
+  from the [WPuQ field study](data/wpuq/README.md) (2019, CC BY 4.0), used only in the check
+  against real households.
 - **Household:** BDEW H25 standard load profile scaled to 3,500 kWh a year; 13,000 kWh of heat a
   year (space heating from degree-hours, hot water with a daily profile); a ground-source heat
   pump whose COP follows the flow temperature (seasonal COP 3.5).
@@ -104,12 +155,18 @@ All inputs are in [config/household.yaml](config/household.yaml).
 
 ## Limitations
 
-- **Consumption is assumed, not measured.** Household electricity, heat demand, roof, tariff and
-  investment costs are working assumptions for a typical house. Real bills and quotes will move
-  the numbers.
-- **The standard load profile is smooth and serves as its own forecast.** Real households have
-  sharper peaks, which lowers PV self-consumption and makes forecasts harder. The value of the
-  battery and of smart control is probably overstated slightly.
+- **Consumption is assumed, not measured, for the main household.** Household electricity, heat
+  demand, roof, tariff and investment costs are working assumptions for a typical house. Real
+  bills and quotes will move the numbers. The 27 measured households show how much the results
+  vary with consumption, but they come from another town and year.
+- **In the main analysis, the standard load profile serves as its own forecast.** This overstates
+  the battery: with measured load and a real forecast, a 5 kWh battery earns about €60 a year
+  less in the median house.
+- **Hourly resolution.** Peaks within the hour are averaged out, which overstates PV
+  self-consumption somewhat for every household, measured or not.
+- **Heat demand of the measured houses is inferred** from their heat-pump electricity at the
+  model's efficiency. Where the backup heater ran often, this overstates the heat demand and the
+  room for pre-heating; those four houses are flagged.
 - **2025 was unusually sunny** (1,011 kWh per kWp here). The 10%-less-sun sensitivity
   approximates an average year.
 - **The heat pump is assumed fully controllable.** A 2010 unit may be on/off only; the on/off
@@ -124,6 +181,7 @@ All inputs are in [config/household.yaml](config/household.yaml).
 python3 -m pip install -e '.[dev]'
 make test
 make analysis      # all scenarios and sensitivities, about 20 minutes on two cores
+make houses        # the 27 measured households, about 40 minutes on two cores
 ```
 
 `make data` refreshes the snapshot from SMARD and Open-Meteo (needs internet access).

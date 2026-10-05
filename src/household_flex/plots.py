@@ -1,4 +1,4 @@
-"""The cost bridge: from today's annual bill to the optimised setup."""
+"""Figures: the cost bridge for the main household and the per-house comparison."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from matplotlib.ticker import FuncFormatter  # noqa: E402
 
@@ -87,6 +88,80 @@ def cost_bridge(scenarios: pd.DataFrame, path: Path) -> None:
              "ground-source heat pump · working assumptions, not measured consumption",
              color=INK_2, fontsize=9.5)
     fig.tight_layout(rect=(0, 0, 1, 0.9))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, facecolor=SURFACE)
+    plt.close(fig)
+
+
+def _strip(ax, values: pd.Series, flagged: pd.Series, y: float, color: str) -> None:
+    """One row of dots, one per house, jittered vertically; flagged houses hollow."""
+    rng = np.random.default_rng(0)
+    jitter = rng.uniform(-0.17, 0.17, len(values))
+    solid = ~flagged.to_numpy()
+    ax.scatter(values[solid], y + jitter[solid], s=34, color=color, alpha=0.85,
+               edgecolor=SURFACE, linewidth=0.6, zorder=3)
+    ax.scatter(values[~solid], y + jitter[~solid], s=34, facecolor="none", edgecolor=color,
+               linewidth=1.1, zorder=3)
+    ax.plot([values.median()] * 2, [y - 0.3, y + 0.3], color=INK, lw=2.0, zorder=4)
+
+
+def houses_figure(per_house: pd.DataFrame, path: Path, reference: dict | None = None) -> None:
+    """NPV of PV and of the best setup, and the battery break-even price, per house."""
+    reference = reference or {}
+    flagged = per_house["likely_backup_heater"].astype(bool)
+    n = len(per_house)
+    plt.rcParams.update({"font.size": 10, "axes.spines.top": False,
+                         "axes.spines.right": False, "axes.spines.left": False})
+    fig, (left, right) = plt.subplots(1, 2, figsize=(11.5, 4.6), dpi=150,
+                                      gridspec_kw={"width_ratios": [1.6, 1.0]})
+    fig.patch.set_facecolor(SURFACE)
+
+    rows = (("PV, fixed tariff", "pv_npv_eur", "pv_npv"),
+            ("PV + dynamic tariff\n+ smart heat pump", "best_npv_eur", "best_npv"))
+    for y, (label, column, ref_key) in enumerate(rows):
+        _strip(left, per_house[column], flagged, y, SAVING)
+        if ref_key in reference:
+            left.scatter(reference[ref_key], y + 0.38, marker="v", s=46, color=COST, zorder=5)
+    left.axvline(0, color=INK_2, lw=0.8)
+    left.set_yticks(range(len(rows)), [r[0] for r in rows], color=INK)
+    left.set_ylim(-0.6, len(rows) - 0.4)
+    left.xaxis.set_major_formatter(FuncFormatter(lambda v, _: _euro(v, signed=v != 0)))
+    left.set_xlabel("Net present value over 20 years, per house", color=INK_2)
+    left.set_title("Investment value", loc="left", color=INK, fontsize=11)
+
+    breakeven = per_house["battery_5kwh_breakeven_eur_per_kwh"]
+    _strip(right, breakeven, flagged, 0, SAVING)
+    if "battery_breakeven" in reference:
+        right.scatter(reference["battery_breakeven"], 0.38, marker="v", s=46, color=COST, zorder=5)
+    assumed = reference.get("battery_price", 600.0)
+    right.axvline(assumed, color=INK_2, lw=0.8, ls=(0, (3, 3)))
+    right.text(assumed, 0.55, f" assumed price\n €{assumed:,.0f}/kWh", color=INK_2, fontsize=8.5,
+               va="top")
+    right.set_yticks([0], ["5 kWh battery\non top"], color=INK)
+    right.set_ylim(-0.6, 0.6)
+    right.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"€{v:,.0f}"))
+    right.set_xlabel("Break-even installed price (EUR/kWh), per house", color=INK_2)
+    right.set_title("Battery", loc="left", color=INK, fontsize=11)
+
+    for ax in (left, right):
+        ax.set_facecolor(SURFACE)
+        ax.grid(axis="x", color=GRID, lw=0.8)
+        ax.set_axisbelow(True)
+        ax.tick_params(axis="y", length=0)
+        ax.tick_params(axis="x", length=0, colors=INK_2)
+
+    pv_positive = int((per_house["pv_npv_eur"] > 0).sum())
+    battery_pays = int((breakeven >= assumed).sum())
+    battery_text = "none" if battery_pays == 0 else f"{battery_pays}"
+    fig.suptitle(f"PV pays in {pv_positive} of {n} measured houses; a 5 kWh battery at "
+                 f"€{assumed:,.0f}/kWh in {battery_text}",
+                 x=0.01, ha="left", fontsize=13, color=INK, fontweight="bold")
+    fig.text(0.01, 0.92, "Each dot is one household from the WPuQ field study (measured 2019 load) "
+             "on the same roof, tariffs and 2025 Berlin prices.\nBar: median · triangle: the "
+             "assumed household of the main analysis · hollow: heat-pump use points to a backup "
+             "heater.", color=INK_2, fontsize=9, va="top", linespacing=1.4)
+    fig.tight_layout()
+    fig.subplots_adjust(top=0.78)
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, facecolor=SURFACE)
     plt.close(fig)

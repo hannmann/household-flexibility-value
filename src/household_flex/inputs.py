@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 
+from . import measured
 from .load_profile import household_load_kw
 
 RADIATION_COLUMNS = (
@@ -89,9 +90,13 @@ def build_inputs(snapshot: pd.DataFrame, cfg: SimpleNamespace) -> pd.DataFrame:
     frame = pd.DataFrame(index=index)
     frame["spot_eur_mwh"] = snapshot["price_eur_mwh"]
     frame["temp_c"] = temp
-    frame["household_kw"] = household_load_kw(
-        index, cfg.household.electricity_kwh_per_year, cfg.location.timezone
-    )
+    measured_house = cfg.household.measured_house
+    if measured_house:
+        frame["household_kw"] = measured.household_load_kw(measured_house, index)
+    else:
+        frame["household_kw"] = household_load_kw(
+            index, cfg.household.electricity_kwh_per_year, cfg.location.timezone
+        )
     frame["pv_kw"] = pv_kw(snapshot["gti_east_wm2"], snapshot["gti_west_wm2"], temp, cfg.pv)
     frame["space_heat_kw"] = space_heat_kw(temp, loss, heating_limit)
     frame["hot_water_kw"] = hot_water_kw(
@@ -119,8 +124,15 @@ def build_inputs(snapshot: pd.DataFrame, cfg: SimpleNamespace) -> pd.DataFrame:
         space_flow_temp_c(temp_fc, cfg.heat_pump, heating_limit), cfg.heat_pump
     )
     # The standard load profile is itself an expectation, so it doubles as
-    # the household load forecast (see limitations in the README).
-    frame["household_fc_kw"] = frame["household_kw"]
+    # the household load forecast. A measured house needs a real forecast.
+    if measured_house and cfg.household.load_forecast == "recent_days":
+        frame["household_fc_kw"] = measured.day_ahead_load_forecast(
+            frame["household_kw"], float(frame["household_kw"].mean())
+        )
+    elif measured_house and cfg.household.load_forecast != "perfect":
+        raise ValueError(f"Unknown load forecast: {cfg.household.load_forecast}")
+    else:
+        frame["household_fc_kw"] = frame["household_kw"]
     frame["hot_water_fc_kw"] = frame["hot_water_kw"]
     frame.attrs["forecast_source"] = "weather forecast" if has_forecast else "persistence"
     frame.attrs["loss_kw_per_k"] = loss

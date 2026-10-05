@@ -12,6 +12,8 @@ household:
   electricity_kwh_per_year: 3500      # assumed: typical 3-person household, excl. heat pump
   space_heat_kwh_per_year: 11000      # assumed: detached house
   hot_water_heat_kwh_per_year: 2000   # assumed
+  measured_house: null                # e.g. "SFH12": measured load from data/wpuq instead of the standard profile
+  load_forecast: recent_days          # measured load only: "recent_days" or "perfect"
 
 building:
   heating_limit_c: 15.0     # outdoor temperature above which no space heating is needed

@@ -25,6 +25,9 @@ class Setpoints:
     trade_buy_kw: float = 0.0
     trade_sell_kw: float = 0.0
     self_consumption_battery: bool = False  # battery follows the measured surplus
+    # Planned upper limits from the optimiser; None means no limit beyond the totals.
+    grid_charge_kw: float | None = None      # charging from the grid at the retail price
+    export_discharge_kw: float | None = None  # discharging into the grid
 
 
 @dataclass
@@ -156,13 +159,20 @@ def realise(sp: Setpoints, state: State, hh: Household, actual: dict, export_pri
     pv_to_battery = min(pv_rest, retail_charge)
     pv_rest -= pv_to_battery
     grid_budget = max(hh.grid_charging_budget_kwh - state.grid_charged_kwh, 0.0)
-    grid_to_battery = min(retail_charge - pv_to_battery, grid_budget)
-    # A PV shortfall is made up from the grid only within the grid-charging budget.
+    # Like a home energy manager, the battery follows the plan but adapts to the actual
+    # hour: it charges from the grid and exports only as much as planned, so a PV
+    # shortfall or a smaller load than forecast reduces charging or discharging instead.
+    planned_grid = retail_charge if sp.grid_charge_kw is None else max(sp.grid_charge_kw, 0.0)
+    grid_to_battery = min(retail_charge - pv_to_battery, planned_grid, grid_budget)
     charge = trade_buy + pv_to_battery + grid_to_battery
 
     retail_discharge = discharge - trade_sell
     battery_to_house = min(retail_discharge, house - pv_self)
     battery_export = retail_discharge - battery_to_house
+    if sp.export_discharge_kw is not None:
+        battery_export = min(battery_export, max(sp.export_discharge_kw, 0.0))
+        retail_discharge = battery_to_house + battery_export
+        discharge = trade_sell + retail_discharge
     grid_to_house = house - pv_self - battery_to_house
 
     curtail = 0.0

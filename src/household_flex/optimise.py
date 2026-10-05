@@ -236,4 +236,6 @@ class OptimisingController:
             battery_discharge_kw=first("d_load") + first("d_exp") + first("t_out"),
             trade_buy_kw=first("t_in"),
             trade_sell_kw=first("t_out"),
+            grid_charge_kw=first("g_bat"),
+            export_discharge_kw=first("d_exp"),
         )

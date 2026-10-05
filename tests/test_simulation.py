@@ -6,7 +6,7 @@ from helpers import inputs_for
 
 from household_flex.optimise import OptimisingController, horizon_ends
 from household_flex.scenarios import BY_KEY, price_frame, run_scenario
-from household_flex.simulate import Household
+from household_flex.simulate import Household, Setpoints, realise
 
 TOL = 1e-6
 
@@ -76,6 +76,27 @@ def test_forecast_controller_never_sees_actuals_or_unpublished_prices() -> None:
     assert controller.plan(t, hh.initial_state(), altered) == expected
     assert baseline.failures == 0 and controller.failures == 0
     assert expected.hp_space_kw + expected.battery_charge_kw + expected.battery_discharge_kw > 0
+
+
+def test_battery_adapts_to_the_actual_hour_instead_of_exporting_or_buying() -> None:
+    inputs, cfg = inputs_for()
+    hh = Household.from_config(cfg, inputs.attrs["loss_kw_per_k"], True, True)
+    actual = {"cop_space": 4.0, "cop_hot_water": 3.0, "hot_water_kw": 0.0,
+              "space_heat_kw": 0.0, "household_kw": 0.5, "pv_kw": 0.0}
+    # The plan expected a 2 kW load; the house only needs 0.5 kW.
+    state = hh.initial_state()
+    plan = Setpoints(battery_discharge_kw=2.0, grid_charge_kw=0.0, export_discharge_kw=0.0)
+    flows = realise(plan, state, hh, actual, 0.077)
+    assert flows["battery_export_kw"] == 0.0
+    assert abs(flows["battery_to_house_kw"] - 0.5) < TOL
+    assert abs(flows["battery_discharge_kw"] - 0.5) < TOL
+    # The plan expected 2 kW of PV surplus to store; only 0.5 kW arrives.
+    state = hh.initial_state()
+    sunny = {**actual, "household_kw": 0.0, "pv_kw": 0.5}
+    plan = Setpoints(battery_charge_kw=2.0, grid_charge_kw=0.0, export_discharge_kw=0.0)
+    flows = realise(plan, state, hh, sunny, 0.077)
+    assert flows["grid_to_battery_kw"] == 0.0
+    assert abs(flows["battery_charge_kw"] - 0.5) < TOL
 
 
 def test_price_horizon_follows_publication_and_daylight_saving() -> None:

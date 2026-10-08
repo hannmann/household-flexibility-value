@@ -58,6 +58,7 @@ class Household:
     tank_retention: float
     hp_thermal_kw: float
     export_cap_kw: float | None
+    battery_export_allowed: bool = False
     appliances_flexible: bool = False   # the controller chooses when the appliances run
     extras: dict = field(default_factory=dict)
 
@@ -68,8 +69,10 @@ class Household:
         capacity_per_k = loss_kw_per_k * tau
         battery = cfg.battery
         budget = 0.0
-        if has_battery and battery.grid_charging and has_pv:
-            budget = battery.grid_charging_kwh_per_kwp_year * cfg.pv.peak_kw
+        if has_battery and battery.grid_charging:
+            budget = float("inf")
+        if battery.export and (battery.grid_charging or cfg.tariffs.feed_in.regime == "fixed"):
+            raise ValueError("Battery resale requires market settlement and PV-only charging")
         cap_share = cfg.tariffs.feed_in.export_cap_share_of_peak
         return cls(
             has_pv=has_pv,
@@ -85,6 +88,7 @@ class Household:
             tank_retention=1.0 - cfg.hot_water_tank.loss_per_hour,
             hp_thermal_kw=cfg.heat_pump.thermal_capacity_kw,
             export_cap_kw=None if cap_share is None else cap_share * cfg.pv.peak_kw,
+            battery_export_allowed=battery.export,
             appliances_flexible=cfg.household.appliances.shifting == "optimised",
         )
 
@@ -98,7 +102,7 @@ FLOW_COLUMNS = (
     "curtail_kw", "grid_to_house_kw", "grid_to_battery_kw", "battery_to_house_kw",
     "battery_export_kw", "battery_charge_kw", "battery_discharge_kw", "trade_buy_kw",
     "trade_sell_kw", "import_kw", "export_kw", "soc_kwh", "building_kwh", "tank_kwh",
-    "comfort_deficit_kwh", "backup_heat_kw",
+    "comfort_deficit_kwh", "backup_heat_kw", "hot_water_deficit_kwh",
 )
 
 
@@ -112,18 +116,21 @@ def realise(sp: Setpoints, state: State, hh: Household, actual: dict, export_pri
     hp_hw = min(hp_hw, hh.hp_thermal_kw / cop_hw)
     hp_sp = min(hp_sp, max(hh.hp_thermal_kw - cop_hw * hp_hw, 0.0) / cop_sp)
 
-    # Hot-water tank: the tap never runs dry; missing heat comes from extra heat-pump runtime.
+    # Thermostat recourse remains within the shared heat-pump thermal rating.
+    # Unserved hot water is reported, rather than inventing unlimited runtime.
     tank = hh.tank_retention * state.tank_kwh + cop_hw * hp_hw - actual["hot_water_kw"]
     if tank < 0.0:
-        extra = -tank / cop_hw
+        spare = max(hh.hp_thermal_kw - cop_hw * hp_hw - cop_sp * hp_sp, 0.0)
+        extra = min(-tank, spare) / cop_hw
         hp_hw += extra
         backup += extra
-        tank = 0.0
+        tank += extra * cop_hw
+    hot_water_deficit = max(-tank, 0.0)
+    tank = max(tank, 0.0)
     tank = min(tank, hh.tank_capacity_kwh)
 
     # Building: below the setpoint the thermostat adds heat within the pump's capacity.
-    # Every controller keeps the same minimum comfort, so savings never come from a
-    # colder house; flexibility comes only from pre-heating above the setpoint.
+    # Every controller targets the same setpoint. Capacity-limited deficits are logged.
     building = hh.building_decay * state.building_kwh + cop_sp * hp_sp - actual["space_heat_kw"]
     lower, upper = 0.0, hh.building_max_kwh
     deficit = 0.0
@@ -163,6 +170,9 @@ def realise(sp: Setpoints, state: State, hh: Household, actual: dict, export_pri
                          state.soc_kwh * hh.eta)
         discharge = min(trade_sell + retail_out, hh.power_kw)
         trade_sell = min(trade_sell, discharge)
+        # Hourly averages may time-share the inverter, but share one power budget.
+        discharge = min(discharge, max(hh.power_kw - charge, 0.0))
+        trade_sell = min(trade_sell, discharge)
     else:
         charge = discharge = trade_buy = trade_sell = 0.0
 
@@ -182,6 +192,10 @@ def realise(sp: Setpoints, state: State, hh: Household, actual: dict, export_pri
     retail_discharge = discharge - trade_sell
     battery_to_house = min(retail_discharge, house - pv_self)
     battery_export = retail_discharge - battery_to_house
+    if not hh.battery_export_allowed:
+        battery_export = 0.0
+        retail_discharge = battery_to_house
+        discharge = trade_sell + retail_discharge
     if sp.export_discharge_kw is not None:
         battery_export = min(battery_export, max(sp.export_discharge_kw, 0.0))
         retail_discharge = battery_to_house + battery_export
@@ -192,11 +206,20 @@ def realise(sp: Setpoints, state: State, hh: Household, actual: dict, export_pri
     pv_export = pv_rest
     if export_price < 0.0:
         curtail, pv_export = pv_export, 0.0
-    if hh.export_cap_kw is not None and pv_export + battery_export > hh.export_cap_kw:
-        excess = pv_export + battery_export - hh.export_cap_kw
+    if hh.export_cap_kw is not None and pv_export + battery_export + trade_sell > hh.export_cap_kw:
+        excess = pv_export + battery_export + trade_sell - hh.export_cap_kw
         cut = min(excess, pv_export)
         pv_export -= cut
         curtail += cut
+        excess -= cut
+        cut = min(excess, battery_export)
+        battery_export -= cut
+        retail_discharge -= cut
+        discharge -= cut
+        excess -= cut
+        cut = min(excess, trade_sell)
+        trade_sell -= cut
+        discharge -= cut
 
     retail_in = charge - trade_buy
     state.soc_kwh = min(max(state.soc_kwh + hh.eta * retail_in - retail_discharge / hh.eta, 0.0),
@@ -218,6 +241,7 @@ def realise(sp: Setpoints, state: State, hh: Household, actual: dict, export_pri
         "soc_kwh": state.soc_kwh + state.trade_soc_kwh,
         "building_kwh": building, "tank_kwh": tank, "comfort_deficit_kwh": deficit,
         "backup_heat_kw": backup,
+        "hot_water_deficit_kwh": hot_water_deficit,
     }
 
 

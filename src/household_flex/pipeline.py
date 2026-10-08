@@ -15,10 +15,12 @@ from .scenarios import BY_KEY, SCENARIOS, price_frame, run_scenario
 
 REPORT_COLUMNS = (
     "scenario", "label", "annual_cost_eur", "import_cost_eur", "export_revenue_eur",
-    "battery_wear_eur", "trading_margin_eur", "smart_meter_eur", "grid_import_kwh",
+    "battery_wear_eur", "dispatch_cost_including_wear_eur", "trading_margin_eur",
+    "smart_meter_eur", "annual_base_eur", "grid_import_kwh",
     "grid_export_kwh", "grid_charging_kwh", "heat_pump_kwh", "heat_pump_avg_price_ct",
     "self_sufficiency", "pv_self_consumption", "battery_cycles", "comfort_deficit_kwh",
-    "backup_heat_kwh", "curtailed_kwh", "solver_fallbacks",
+    "backup_heat_kwh", "hot_water_deficit_kwh", "comfort_shortfall_hours",
+    "max_battery_throughput_kw", "curtailed_kwh", "solver_fallbacks",
 )
 
 # name -> (config overrides, scenarios to run)
@@ -27,17 +29,21 @@ SENSITIVITIES: dict[str, tuple[dict[str, Any], tuple[str, ...]]] = {
     "battery_5kwh": ({"battery.capacity_kwh": 5.0, "battery.power_kw": 2.5}, ("S5",)),
     "battery_15kwh": ({"battery.capacity_kwh": 15.0, "battery.power_kw": 7.5}, ("S5",)),
     "no_grid_charging": ({"battery.grid_charging": False}, ("S5",)),
-    "feed_in_after_reform": ({"tariffs.feed_in.regime": "market"}, ("S2", "S3", "S5")),
+    "hypothetical_market_feed_in": (
+        {"tariffs.feed_in.regime": "market", "battery.export": True,
+         "battery.grid_charging": False}, ("S2", "S3", "S5")),
     "export_cap_60pct": ({"tariffs.feed_in.export_cap_share_of_peak": 0.6}, ("S5",)),
     # 2025 was unusually sunny; 10% less PV output approximates an average year.
     "pv_yield_minus_10pct": ({"pv.system_losses": 1.0 - 0.86 * 0.9}, ("S2", "S3", "S5")),
     "battery_0kwh_pv_minus_10pct": (
         {"battery.capacity_kwh": 0.0, "pv.system_losses": 1.0 - 0.86 * 0.9}, ("S5",)),
-    "battery_0kwh_after_reform": (
-        {"battery.capacity_kwh": 0.0, "tariffs.feed_in.regime": "market"}, ("S5",)),
-    "battery_5kwh_after_reform": (
+    "battery_0kwh_market_feed_in": (
+        {"battery.capacity_kwh": 0.0, "tariffs.feed_in.regime": "market",
+         "battery.export": True, "battery.grid_charging": False}, ("S5",)),
+    "battery_5kwh_market_feed_in": (
         {"battery.capacity_kwh": 5.0, "battery.power_kw": 2.5,
-         "tariffs.feed_in.regime": "market"}, ("S5",)),
+         "tariffs.feed_in.regime": "market", "battery.export": True,
+         "battery.grid_charging": False}, ("S5",)),
     "heat_pump_on_off": ({"heat_pump.flexible": False}, ("S5",)),
     # Dishwasher, washing machine and dryer: started around midday, or timed by the optimiser.
     "appliances_timer": ({"household.appliances.shifting": "timer"}, ("S2", "S3", "S5")),
@@ -124,8 +130,9 @@ def run_all(snapshot: Path, reports: Path, config_path: Path = config.DEFAULT_CO
 # Optimised (S5) runs that differ only in battery size, grouped by the rest of the setup.
 BATTERY_FAMILIES: dict[str, dict[int, str]] = {
     "fixed feed-in": {0: "battery_0kwh", 5: "battery_5kwh", 10: "base", 15: "battery_15kwh"},
-    "feed-in after reform": {0: "battery_0kwh_after_reform", 5: "battery_5kwh_after_reform",
-                             10: "feed_in_after_reform"},
+    "hypothetical market feed-in": {
+        0: "battery_0kwh_market_feed_in", 5: "battery_5kwh_market_feed_in",
+        10: "hypothetical_market_feed_in"},
     "10% less sun": {0: "battery_0kwh_pv_minus_10pct", 10: "pv_yield_minus_10pct"},
 }
 
@@ -153,7 +160,7 @@ def _battery_value(results: pd.DataFrame, cfg) -> pd.DataFrame:
 
 
 def price_structure(snapshot: Path, cfg) -> pd.DataFrame:
-    """Facts about the household price that limit what any optimiser can earn."""
+    """Price spreads and solar overlap; fixed components do not cancel spreads."""
     inputs = build_inputs(read_snapshot(snapshot), cfg)
     retail_ct = price_frame(inputs, cfg, dynamic=True)["import"] * 100.0
     local = inputs.index.tz_convert(cfg.location.timezone)
@@ -168,8 +175,8 @@ def price_structure(snapshot: Path, cfg) -> pd.DataFrame:
     surplus = inputs["pv_kw"] - inputs["household_kw"] - heat_pump_kw
     facts = {
         "mean_dynamic_price_ct_per_kwh": retail_ct.mean(),
-        "fixed_parts_ct_per_kwh": cfg.tariffs.dynamic.fixed_parts_ct_per_kwh,
-        "fixed_share_of_price": cfg.tariffs.dynamic.fixed_parts_ct_per_kwh / retail_ct.mean(),
+        "non_energy_gross_ct_per_kwh": (
+            cfg.tariffs.dynamic.non_energy_net_ct_per_kwh * (1 + cfg.tariffs.dynamic.vat)),
         "daily_price_spread_winter_ct": daily.loc[winter, "spread"].mean(),
         "daily_price_spread_summer_ct": daily.loc[summer, "spread"].mean(),
         "negative_price_hours": int(negative.sum()),

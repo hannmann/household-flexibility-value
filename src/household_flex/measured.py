@@ -68,7 +68,7 @@ def day_ahead_load_forecast(load: pd.Series, fallback_kw: float) -> pd.Series:
 
     Every value used is at least 48 hours old, so the forecast is available
     whenever the optimiser plans, up to 35 hours ahead. The first two days have
-    no history and use ``fallback_kw`` (the mean load known from the last bill).
+    no history and use the declared ``fallback_kw`` prior, not an evaluation-year mean.
     """
     lags = pd.concat([load.shift(24 * d) for d in FORECAST_LAG_DAYS], axis=1)
     return lags.mean(axis=1).fillna(fallback_kw).rename("household_fc_kw")

@@ -14,7 +14,7 @@ def test_dynamic_price_adds_fixed_parts_and_vat_to_spot() -> None:
     cfg = config.load()
     spot = pd.Series([100.0, -50.0])  # EUR/MWh
     price = import_price(spot, cfg, dynamic=True)
-    expected = (0.10 + 0.015) * 1.19 + 0.218
+    expected = (0.10 + 0.015 + 0.15895325) * 1.19
     assert math.isclose(price.iloc[0], expected)
     assert price.iloc[1] > 0  # fixed parts keep retail positive at negative spot
 

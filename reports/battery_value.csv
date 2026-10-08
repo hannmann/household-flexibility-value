@@ -1,7 +1,7 @@
 setup,battery_kwh,extra_saving_eur_per_year,breakeven_eur_per_kwh,assumed_eur_per_kwh
-fixed feed-in,5,235.4,405.6,600
-fixed feed-in,10,287.3,255.4,600
-fixed feed-in,15,306.7,183.4,600
-feed-in after reform,5,271.0,477.7,600
-feed-in after reform,10,375.9,345.1,600
-10% less sun,10,277.4,245.4,600
+fixed feed-in,5,235.2,405.3,600
+fixed feed-in,10,276.2,244.2,600
+fixed feed-in,15,289.3,171.6,600
+hypothetical market feed-in,5,259.3,454.0,600
+hypothetical market feed-in,10,371.7,340.8,600
+10% less sun,10,269.2,237.0,600

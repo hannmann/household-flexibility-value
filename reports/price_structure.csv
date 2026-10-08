@@ -1,9 +1,8 @@
 fact,value
-mean_dynamic_price_ct_per_kwh,34.215
-fixed_parts_ct_per_kwh,21.8
-fixed_share_of_price,0.637
+mean_dynamic_price_ct_per_kwh,31.33
+non_energy_gross_ct_per_kwh,18.915
 daily_price_spread_winter_ct,9.953
 daily_price_spread_summer_ct,17.2
 negative_price_hours,576.0
-mean_dynamic_price_in_negative_hours_ct,22.289
+mean_dynamic_price_in_negative_hours_ct,19.404
 share_of_negative_hours_with_own_pv_surplus,0.891

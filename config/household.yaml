@@ -25,7 +25,7 @@ household:
 building:
   heating_limit_c: 15.0     # outdoor temperature above which no space heating is needed
   setpoint_c: 21.0
-  max_preheat_k: 1.5        # controllers may heat up to 1.5 K above the setpoint, never below it
+  max_preheat_k: 1.5        # pre-heating headroom; capacity-limited comfort shortfalls are reported
   time_constant_h: 60.0     # assumed: how slowly the house cools down (C / H)
 
 heat_pump:
@@ -55,20 +55,21 @@ battery:
   power_kw: 5.0
   round_trip_efficiency: 0.90
   wear_cost_eur_per_kwh: 0.02   # per kWh discharged
-  grid_charging: true           # MiSpeL flat-rate option (from 1 Oct 2026)
-  grid_charging_kwh_per_kwp_year: 500
+  grid_charging: true           # retail imports for later household use, not subsidised resale
+  export: false                # PV exports directly; battery exports need separate settlement
 
 tariffs:
   fixed_price_ct_per_kwh: 35.0          # assumed current contract, gross
   dynamic:
-    fixed_parts_ct_per_kwh: 21.8        # grid fees, taxes and levies incl. VAT (BDEW 2026 average)
+    non_energy_net_ct_per_kwh: 15.895325 # illustrative BDEW proxy: 21.8 minus 5.904675 VAT
     supplier_markup_ct_per_kwh: 1.5     # net
     vat: 0.19
-  smart_meter_eur_per_year: 50.0        # price cap with a controllable device
+  annual_base_eur: 0.0                  # placeholder, identical in both tariffs; replace with quotes
+  smart_meter_eur_per_year: 50.0        # assumed household metering charge; replace with offer
   feed_in:
-    regime: fixed                       # "fixed" (commissioned by 31 Dec 2026) or "market" (planned reform)
+    regime: fixed                       # "fixed" or hypothetical "market" settlement
     fixed_ct_per_kwh: 7.70              # partial feed-in up to 10 kWp, Aug 2026 - Jan 2027
-    market_bonus_ct_per_kwh: 1.5        # planned direct-marketing bonus under the reform
+    market_bonus_ct_per_kwh: 1.5        # hypothetical premium, not an enacted entitlement
     no_payment_at_negative_prices: true # Solarspitzengesetz
     export_cap_share_of_peak: null      # 0.6 without smart meter; null = no cap
 

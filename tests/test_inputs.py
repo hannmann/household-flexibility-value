@@ -29,8 +29,8 @@ def test_berlin_holidays_include_womens_day_and_easter_monday_2025() -> None:
 def test_radiation_is_moved_to_start_of_hour_labels(tmp_path) -> None:
     index = pd.date_range("2025-06-01", periods=4, freq="1h", tz="UTC")
     frame = pd.DataFrame(
-        {"price_eur_mwh": 1.0, "temp_c": 20.0, "ghi_wm2": [0, 100, 200, 300],
-         "gti_east_wm2": [0, 100, 200, 300], "gti_west_wm2": [0, 10, 20, 30]},
+        {"price_eur_mwh": 1.0, "temp_c": 20.0, "ghi_wm2": [0, 100, 200, 0],
+         "gti_east_wm2": [0, 100, 200, 0], "gti_west_wm2": [0, 10, 20, 0]},
         index=index,
     )
     path = tmp_path / "snap.csv"

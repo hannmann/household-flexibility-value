@@ -33,10 +33,21 @@ def read_snapshot(path: Path) -> pd.DataFrame:
     frame = pd.read_csv(path, index_col=0)
     frame.index = pd.to_datetime(frame.index, utc=True)
     frame = frame.sort_index()
+    if not frame.index.is_unique or not (frame.index.to_series().diff().dropna()
+                                         == pd.Timedelta(hours=1)).all():
+        raise ValueError("Snapshot must have unique, consecutive UTC hours")
+    if frame.isna().any().any():
+        raise ValueError("Incomplete snapshot: download missing values; do not backfill forecasts")
     for column in RADIATION_COLUMNS:
         if column in frame:
+            last = frame[column].iloc[-1]
             frame[column] = frame[column].shift(-1)
-    return frame.interpolate(limit=3).ffill().bfill()
+            # The bundled Berlin year ends at night. Require a zero boundary;
+            # arbitrary daytime files must extend to a zero night-time boundary.
+            if last != 0.0:
+                raise ValueError("Radiation alignment needs a trailing zero night-time sample")
+            frame.loc[frame.index[-1], column] = 0.0
+    return frame
 
 
 def pv_kw(
@@ -107,18 +118,28 @@ def build_inputs(snapshot: pd.DataFrame, cfg: SimpleNamespace) -> pd.DataFrame:
         np.full(len(index), cfg.heat_pump.hot_water_flow_temp_c), cfg.heat_pump
     )
 
-    # Day-ahead forecasts. Weather forecasts issued the day before are used
-    # when the download provided them; otherwise yesterday's value at the
-    # same hour (persistence), an honest but weak baseline.
+    # Fixed 48 h lead forecasts, not a common day-ahead model run. Availability
+    # uses a conservative 6 h publication buffer. Radiation labels move back
+    # one hour, so their nominal availability is an hour later than temperature.
     has_forecast = {"temp_fc_c", "gti_east_fc_wm2", "gti_west_fc_wm2"} <= set(snapshot.columns)
     if has_forecast:
+        if "forecast_lead_hours" not in snapshot:
+            raise ValueError("Weather forecasts need declared lead time; legacy snapshots unsafe")
+        lead = snapshot["forecast_lead_hours"]
+        if not (lead >= 48).all():
+            raise ValueError("Weather lead time must cover the entire published-price horizon")
         temp_fc = snapshot["temp_fc_c"]
         frame["pv_fc_kw"] = pv_kw(
             snapshot["gti_east_fc_wm2"], snapshot["gti_west_fc_wm2"], temp_fc, cfg.pv
         )
+        available = index + pd.to_timedelta(7.0 - lead, unit="h")
     else:
-        temp_fc = temp.shift(24).bfill()
-        frame["pv_fc_kw"] = frame["pv_kw"].shift(24).bfill()
+        # Values are available after the observed hour has ended. No future
+        # backfill at startup: use declared climatology/zero PV baselines.
+        temp_fc = temp.shift(48).fillna(10.0)
+        frame["pv_fc_kw"] = frame["pv_kw"].shift(48).fillna(0.0)
+        available = index - pd.Timedelta(hours=47)
+    frame["weather_fc_available_at_ns"] = [stamp.value for stamp in available]
     frame["space_heat_fc_kw"] = space_heat_kw(temp_fc, loss, heating_limit)
     frame["cop_space_fc"] = cop(
         space_flow_temp_c(temp_fc, cfg.heat_pump, heating_limit), cfg.heat_pump
@@ -127,7 +148,7 @@ def build_inputs(snapshot: pd.DataFrame, cfg: SimpleNamespace) -> pd.DataFrame:
     # the household load forecast. A measured house needs a real forecast.
     if measured_house and cfg.household.load_forecast == "recent_days":
         frame["household_fc_kw"] = measured.day_ahead_load_forecast(
-            frame["household_kw"], float(frame["household_kw"].mean())
+            frame["household_kw"], cfg.household.electricity_kwh_per_year / 8760.0
         )
     elif measured_house and cfg.household.load_forecast != "perfect":
         raise ValueError(f"Unknown load forecast: {cfg.household.load_forecast}")
@@ -135,6 +156,7 @@ def build_inputs(snapshot: pd.DataFrame, cfg: SimpleNamespace) -> pd.DataFrame:
         frame["household_fc_kw"] = frame["household_kw"]
     frame["hot_water_fc_kw"] = frame["hot_water_kw"]
     appliances.apply(frame, cfg.household.appliances, cfg.location.timezone)
-    frame.attrs["forecast_source"] = "weather forecast" if has_forecast else "persistence"
+    frame.attrs["forecast_source"] = (
+        "fixed 48h lead + 6h buffer" if has_forecast else "48h persistence")
     frame.attrs["loss_kw_per_k"] = loss
     return frame

@@ -39,7 +39,8 @@ PROFILE_RUNS: dict[str, tuple[str, dict[str, Any]]] = {
     "pv_battery_rules_profile": ("S3", BATTERY_5KWH),
 }
 RESULT_FIELDS = ("annual_cost_eur", "pv_self_consumption", "self_sufficiency",
-                 "heat_pump_kwh", "comfort_deficit_kwh", "solver_fallbacks")
+                 "heat_pump_kwh", "comfort_deficit_kwh", "hot_water_deficit_kwh",
+                 "comfort_shortfall_hours", "max_battery_throughput_kw", "solver_fallbacks")
 
 
 def heat_settings(snapshot: pd.DataFrame, cfg, measured_heat_pump_kwh: float,

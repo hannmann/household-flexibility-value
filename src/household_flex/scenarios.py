@@ -31,7 +31,7 @@ SCENARIOS: tuple[Scenario, ...] = (
     Scenario("S4", "All, simple rules", pv=True, battery=True, dynamic=True, control="rules"),
     Scenario("S5", "All, optimised on forecasts", pv=True, battery=True, dynamic=True,
              control="forecast"),
-    Scenario("S6", "All, perfect foresight", pv=True, battery=True, dynamic=True,
+    Scenario("S6", "Perfect-information rolling benchmark", pv=True, battery=True, dynamic=True,
              control="perfect"),
     Scenario("S7", "What if: exchange trading", pv=True, battery=True, dynamic=True,
              control="perfect", trading=True),
@@ -91,7 +91,8 @@ def summarise(flows: pd.DataFrame, prices: pd.DataFrame) -> dict:
         "grid_export_kwh": float(flows["export_kw"].sum()),
         "grid_charging_kwh": float(flows["grid_to_battery_kw"].sum()),
         "heat_pump_kwh": float(hp.sum()),
-        "self_sufficiency": float(1.0 - flows["grid_to_house_kw"].sum() / demand.sum()),
+        # Annual import balance, not a PV-origin ledger (grid-charged energy counts).
+        "self_sufficiency": float(1.0 - flows["import_kw"].sum() / demand.sum()),
         "pv_self_consumption": (
             float((flows["pv_self_kw"] + flows["pv_to_battery_kw"]).sum() / pv)
             if pv > 0 else float("nan")
@@ -100,5 +101,9 @@ def summarise(flows: pd.DataFrame, prices: pd.DataFrame) -> dict:
         "battery_cycles": float(flows["battery_discharge_kw"].sum()),
         "comfort_deficit_kwh": float(flows["comfort_deficit_kwh"].sum()),
         "backup_heat_kwh": float(flows["backup_heat_kw"].sum()),
+        "hot_water_deficit_kwh": float(flows["hot_water_deficit_kwh"].sum()),
+        "comfort_shortfall_hours": int((flows["comfort_deficit_kwh"] > 1e-6).sum()),
+        "max_battery_throughput_kw": float(
+            (flows["battery_charge_kw"] + flows["battery_discharge_kw"]).max()),
         "curtailed_kwh": float(flows["curtail_kw"].sum()),
     }

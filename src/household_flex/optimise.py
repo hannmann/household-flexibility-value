@@ -65,6 +65,14 @@ class OptimisingController:
         self.app_max_kw = cfg.household.appliances.max_kw
         self.fallback = RuleController(hh)
         self.failures = 0
+        self.forecast_available = None
+        if not perfect_foresight:
+            if "weather_fc_available_at_ns" not in inputs:
+                raise ValueError("Forecasts need explicit availability metadata")
+            self.forecast_available = inputs["weather_fc_available_at_ns"].to_numpy()
+            for t, end in enumerate(self.ends):
+                if np.any(self.forecast_available[t:end] > inputs.index[t].value):
+                    raise ValueError("Weather forecast was unavailable at the decision time")
 
     def plan(self, t: int, state: State, inputs: pd.DataFrame) -> Setpoints:
         end = max(int(self.ends[t]), t + 1)
@@ -158,6 +166,29 @@ class OptimisingController:
             add(k + hours, f(name), 1.0)
         b_ub.append(np.full(n, hh.power_kw))
         k += n
+        # One inverter: total charge + discharge energy per hour <= rated kW.
+        # Allows within-hour time-sharing, not concurrent use of two 5 kW devices.
+        for name in ("u_bat", "g_bat", "t_in", "d_load", "d_exp", "t_out"):
+            add(k + hours, f(name), 1.0)
+        b_ub.append(np.full(n, hh.power_kw))
+        k += n
+        # Match execution: discharge only inventory held at the hour's start,
+        # and charge only into headroom already available at the hour's start.
+        for name in ("d_load", "d_exp"):
+            add(k + hours, f(name), 1.0 / eta)
+        add(k + hours, base_soc + hours, -1.0)
+        b_ub.append(np.zeros(n))
+        k += n
+        add(k + hours, f("t_out"), 1.0 / eta)
+        add(k + hours, base_trade + hours, -1.0)
+        b_ub.append(np.zeros(n))
+        k += n
+        for name in ("u_bat", "g_bat", "t_in"):
+            add(k + hours, f(name), eta)
+        add(k + hours, base_soc + hours, 1.0)
+        add(k + hours, base_trade + hours, 1.0)
+        b_ub.append(np.full(n, hh.capacity_kwh))
+        k += n
         add(k + hours, f("p_sp"), cop_sp)
         add(k + hours, f("p_hw"), cop_hw)
         if self.on_off:
@@ -175,13 +206,14 @@ class OptimisingController:
         add(k + hours, base_trade + hours + 1, 1.0)
         b_ub.append(np.full(n, hh.capacity_kwh))
         k += n
-        add(k + hours, base_s + hours + 1, -1.0)       # S + slack >= 0: never below setpoint
+        add(k + hours, base_s + hours + 1, -1.0)       # target comfort; report any slack
         add(k + hours, base_slack + hours, -1.0)
         b_ub.append(np.zeros(n))
         k += n
         if hh.export_cap_kw is not None:
             add(k + hours, f("u_exp"), 1.0)
             add(k + hours, f("d_exp"), 1.0)
+            add(k + hours, f("t_out"), 1.0)
             b_ub.append(np.full(n, hh.export_cap_kw))
             k += n
         a_ub = coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))),
@@ -191,6 +223,8 @@ class OptimisingController:
         # Bounds.
         lower = np.zeros(n_var)
         upper = np.full(n_var, np.inf)
+        if not hh.battery_export_allowed:
+            upper[f("d_exp")] = 0.0
         grid_budget = max(hh.grid_charging_budget_kwh - state.grid_charged_kwh, 0.0)
         if grid_budget <= 1e-9:
             upper[f("g_bat")] = 0.0

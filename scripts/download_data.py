@@ -14,7 +14,7 @@ Needs only `pandas` and `requests`. Writes
 - ghi_wm2              global horizontal irradiance
 - gti_east_wm2,        irradiance on east / west facing panels at the
   gti_west_wm2         configured tilt (flat-roof east-west rows)
-- *_fc columns         the same weather as forecast the day before
+- *_fc columns         weather forecasts with fixed 48-hour lead time
                        (Open-Meteo previous-runs API), if available
 
 Open-Meteo irradiance values are means over the preceding hour. All
@@ -124,24 +124,26 @@ def download_weather(year: int) -> pd.DataFrame:
 
 
 def download_forecasts(year: int) -> pd.DataFrame | None:
-    """Weather as forecast one day earlier. Optional: returns None on failure."""
+    """Fixed 48 h lead weather, conservatively older than the <=36 h price horizon."""
     start, end = f"{year}-01-01", f"{year}-12-31"
     try:
         base = _open_meteo(
-            PREVIOUS_RUNS_URL, ["temperature_2m_previous_day1"], start, end
-        ).rename(columns={"temperature_2m_previous_day1": "temp_fc_c"})
+            PREVIOUS_RUNS_URL, ["temperature_2m_previous_day2"], start, end
+        ).rename(columns={"temperature_2m_previous_day2": "temp_fc_c"})
         east = _open_meteo(
-            PREVIOUS_RUNS_URL, ["global_tilted_irradiance_previous_day1"], start, end,
+            PREVIOUS_RUNS_URL, ["global_tilted_irradiance_previous_day2"], start, end,
             tilt=PANEL_TILT_DEG, azimuth=-90,
-        ).rename(columns={"global_tilted_irradiance_previous_day1": "gti_east_fc_wm2"})
+        ).rename(columns={"global_tilted_irradiance_previous_day2": "gti_east_fc_wm2"})
         west = _open_meteo(
-            PREVIOUS_RUNS_URL, ["global_tilted_irradiance_previous_day1"], start, end,
+            PREVIOUS_RUNS_URL, ["global_tilted_irradiance_previous_day2"], start, end,
             tilt=PANEL_TILT_DEG, azimuth=90,
-        ).rename(columns={"global_tilted_irradiance_previous_day1": "gti_west_fc_wm2"})
+        ).rename(columns={"global_tilted_irradiance_previous_day2": "gti_west_fc_wm2"})
     except (RuntimeError, KeyError) as exc:
-        print(f"Day-ahead weather forecasts unavailable, continuing without: {exc}")
+        print(f"48-hour lead weather unavailable, using a causal persistence baseline: {exc}")
         return None
-    return base.join([east, west])
+    forecasts = base.join([east, west])
+    forecasts["forecast_lead_hours"] = 48
+    return forecasts
 
 
 def main() -> None:
@@ -165,8 +167,8 @@ def main() -> None:
 
     missing = frame[["price_eur_mwh", "temp_c", "gti_east_wm2", "gti_west_wm2"]].isna().sum()
     print("Missing values per column:\n" + missing.to_string())
-    if missing.sum() > 48:
-        sys.exit("Too many gaps; check the downloads before using this file.")
+    if frame.isna().any().any():
+        sys.exit("Incomplete data; check the downloads before using this file.")
 
     out = ROOT / "data" / "snapshot" / f"berlin_{args.year}_hourly.csv.gz"
     out.parent.mkdir(parents=True, exist_ok=True)

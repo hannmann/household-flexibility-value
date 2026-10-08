@@ -4,17 +4,17 @@ Heat-pump electricity (kWh/year),4122.988,2110.252,9649.77,1468.13,14979.584,361
 Annual cost today (EUR),2934.178,1629.796,4352.105,1372.342,6309.693,2069.796
 PV: annual saving (EUR),1125.081,935.537,1271.48,857.756,1376.76,1103.976
 PV: NPV over 20 years (EUR),3178.641,475.525,5266.448,-633.724,6767.859,2877.654
-PV + dynamic tariff + smart heat pump: annual saving (EUR),1295.175,1085.485,1496.529,1032.051,1564.094,1254.549
-PV + dynamic tariff + smart heat pump: NPV (EUR),5604.361,2613.954,8475.893,1851.923,9439.454,5024.995
-5 kWh battery on top: extra saving (EUR/year),171.362,126.672,238.363,120.558,271.71,178.212
-5 kWh battery: break-even price (EUR/kWh),275.998,185.505,411.67,173.125,479.194,289.869
-Knowing the household load in advance (EUR/year),33.322,23.124,62.29,5.279,76.905,33.322
-Household load forecast error (MAE / mean load),0.482,0.328,0.623,0.275,0.692,0.482
+PV + dynamic tariff + smart heat pump: annual saving (EUR),1449.013,1147.56,1741.453,1080.201,1973.954,1334.989
+PV + dynamic tariff + smart heat pump: NPV (EUR),7798.274,3499.21,11968.793,2538.598,15284.513,6172.163
+5 kWh battery on top: extra saving (EUR/year),168.698,122.823,233.399,111.839,274.302,172.399
+5 kWh battery: break-even price (EUR/kWh),270.604,177.711,401.617,155.469,484.441,278.097
+Knowing the household load in advance (EUR/year),32.904,23.305,58.483,5.717,71.219,32.248
+Household load forecast error (MAE / mean load),0.482,0.329,0.623,0.284,0.693,0.482
 Peak hour / mean hour of household load,9.197,7.135,13.862,5.803,17.196,9.197
 "PV self-consumption, measured load",0.305,0.222,0.369,0.189,0.412,0.297
 "PV self-consumption, standard profile",0.304,0.216,0.366,0.181,0.39,0.287
-"Battery 5 kWh, simple rules: saving, measured load (EUR)",257.855,230.783,299.609,211.635,309.394,262.342
-"Battery 5 kWh, simple rules: saving, standard profile (EUR)",260.498,241.454,294.509,233.242,317.613,267.292
+"Battery 5 kWh, simple rules: saving, measured load (EUR)",278.292,249.157,323.564,228.312,334.332,283.426
+"Battery 5 kWh, simple rules: saving, standard profile (EUR)",281.304,260.536,318.149,252.124,343.133,288.678
 Houses where PV has a positive NPV,0.963,,,,,0.957
 Houses where the best setup has a positive NPV,1.0,,,,,1.0
 Houses where a 5 kWh battery breaks even at EUR 600/kWh,0.0,,,,,0.0

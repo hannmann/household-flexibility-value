@@ -10,7 +10,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
-from matplotlib.ticker import FuncFormatter  # noqa: E402
+from matplotlib.ticker import FuncFormatter, MaxNLocator  # noqa: E402
 
 SURFACE = "#fcfcfb"
 INK = "#0b0b0b"
@@ -65,7 +65,7 @@ def cost_bridge(scenarios: pd.DataFrame, path: Path) -> None:
                 fontsize=10, fontweight="bold" if kind == "total" else "normal")
 
     ax.axvline(5.5, color=INK_2, lw=0.8, ls=(0, (3, 3)))
-    ax.text(5.6, cost.max() * 1.08, "Upper bounds, not achievable in practice",
+    ax.text(5.6, cost.max() * 1.08, "Hypothetical benchmarks",
             color=INK_2, fontsize=9, va="top")
     ax.set_xticks(range(len(STEPS)), [s[0] for s in STEPS], color=INK)
     ax.tick_params(axis="x", length=0)
@@ -74,7 +74,7 @@ def cost_bridge(scenarios: pd.DataFrame, path: Path) -> None:
     ax.grid(axis="y", color=GRID, lw=0.8)
     ax.set_axisbelow(True)
     ax.set_ylim(0, cost.max() * 1.12)
-    ax.set_ylabel("Annual energy cost (electricity incl. heat pump)", color=INK_2)
+    ax.set_ylabel("Annual cash cost (electricity incl. heat pump)", color=INK_2)
 
     pv = cost["S0"] - cost["S2"]
     battery = cost["S2"] - cost["S3"]
@@ -118,7 +118,7 @@ def houses_figure(per_house: pd.DataFrame, path: Path, reference: dict | None = 
 
     rows = (("PV, fixed tariff", "pv_npv_eur", "pv_npv"),
             ("PV + dynamic tariff\n+ smart heat pump", "best_npv_eur", "best_npv"))
-    for y, (label, column, ref_key) in enumerate(rows):
+    for y, (_label, column, ref_key) in enumerate(rows):
         _strip(left, per_house[column], flagged, y, SAVING)
         if ref_key in reference:
             left.scatter(reference[ref_key], y + 0.38, marker="v", s=46, color=COST, zorder=5)
@@ -126,6 +126,7 @@ def houses_figure(per_house: pd.DataFrame, path: Path, reference: dict | None = 
     left.set_yticks(range(len(rows)), [r[0] for r in rows], color=INK)
     left.set_ylim(-0.6, len(rows) - 0.4)
     left.xaxis.set_major_formatter(FuncFormatter(lambda v, _: _euro(v, signed=v != 0)))
+    left.xaxis.set_major_locator(MaxNLocator(nbins=4))
     left.set_xlabel("Net present value over 20 years, per house", color=INK_2)
     left.set_title("Investment value", loc="left", color=INK, fontsize=11)
 
@@ -153,7 +154,7 @@ def houses_figure(per_house: pd.DataFrame, path: Path, reference: dict | None = 
     pv_positive = int((per_house["pv_npv_eur"] > 0).sum())
     battery_pays = int((breakeven >= assumed).sum())
     battery_text = "none" if battery_pays == 0 else f"{battery_pays}"
-    fig.suptitle(f"PV pays in {pv_positive} of {n} measured houses; a 5 kWh battery at "
+    fig.suptitle(f"PV has positive NPV in {pv_positive} of {n} load replays; a 5 kWh battery at "
                  f"€{assumed:,.0f}/kWh in {battery_text}",
                  x=0.01, ha="left", fontsize=13, color=INK, fontweight="bold")
     fig.text(0.01, 0.92, "Each dot is one household from the WPuQ field study (measured 2019 load) "

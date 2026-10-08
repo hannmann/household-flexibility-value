@@ -69,5 +69,6 @@ def synthetic_snapshot(year: int = 2024, prices: pd.Series | None = None,
         # Stamp each hour's mean at the hour's end, as Open-Meteo does.
         frame[column] = pd.Series(values, index=index).shift(1).fillna(0.0)
     frame["temp_fc_c"] = temp + rng.normal(0, 1.0, len(index))
+    frame["forecast_lead_hours"] = 48
     frame.index.name = "timestamp_utc"
     return frame

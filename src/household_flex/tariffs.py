@@ -14,8 +14,9 @@ def import_price(spot_eur_mwh: pd.Series, cfg: SimpleNamespace, dynamic: bool) -
     if not dynamic:
         return pd.Series(tariffs.fixed_price_ct_per_kwh / 100.0, index=spot_eur_mwh.index)
     dyn = tariffs.dynamic
-    energy = (spot_eur_mwh / 1000.0 + dyn.supplier_markup_ct_per_kwh / 100.0) * (1.0 + dyn.vat)
-    return energy + dyn.fixed_parts_ct_per_kwh / 100.0
+    net = (spot_eur_mwh / 1000.0 + dyn.supplier_markup_ct_per_kwh / 100.0
+           + dyn.non_energy_net_ct_per_kwh / 100.0)
+    return net * (1.0 + dyn.vat)
 
 
 def export_price(spot_eur_mwh: pd.Series, cfg: SimpleNamespace) -> pd.Series:
@@ -42,12 +43,17 @@ def settle(
     wear = float(flows["battery_discharge_kw"].sum() * cfg.battery.wear_cost_eur_per_kwh)
     trading = float(((flows["trade_sell_kw"] - flows["trade_buy_kw"]) * prices["spot"]).sum())
     meter = cfg.tariffs.smart_meter_eur_per_year if smart_meter else 0.0
-    total = import_cost - export_revenue + wear - trading + meter
+    base = cfg.tariffs.annual_base_eur
+    # Wear is an opportunity cost in dispatch, not a cash payment. Replacement
+    # is already charged separately by the investment appraisal.
+    total = import_cost - export_revenue - trading + meter + base
     return {
         "import_cost_eur": import_cost,
         "export_revenue_eur": export_revenue,
         "battery_wear_eur": wear,
         "trading_margin_eur": trading,
         "smart_meter_eur": meter,
+        "annual_base_eur": base,
+        "dispatch_cost_including_wear_eur": total + wear,
         "annual_cost_eur": total,
     }

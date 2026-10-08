@@ -39,6 +39,13 @@ SENSITIVITIES: dict[str, tuple[dict[str, Any], tuple[str, ...]]] = {
         {"battery.capacity_kwh": 5.0, "battery.power_kw": 2.5,
          "tariffs.feed_in.regime": "market"}, ("S5",)),
     "heat_pump_on_off": ({"heat_pump.flexible": False}, ("S5",)),
+    # Dishwasher, washing machine and dryer: started around midday, or timed by the optimiser.
+    "appliances_timer": ({"household.appliances.shifting": "timer"}, ("S2", "S3", "S5")),
+    "appliances_optimised": ({"household.appliances.shifting": "optimised"}, ("S5",)),
+    "battery_0kwh_appliances_timer": (
+        {"battery.capacity_kwh": 0.0, "household.appliances.shifting": "timer"}, ("S5",)),
+    "battery_0kwh_appliances_optimised": (
+        {"battery.capacity_kwh": 0.0, "household.appliances.shifting": "optimised"}, ("S5",)),
     # A modern heat pump on the same borehole: about 20% more efficient.
     "heat_pump_modern": ({"heat_pump.carnot_efficiency": 0.6}, ("S0", "S4", "S5")),
     "heat_pump_modern_big_tank": (

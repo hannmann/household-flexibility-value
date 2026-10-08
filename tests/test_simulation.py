@@ -112,3 +112,30 @@ def test_price_horizon_follows_publication_and_daylight_saving() -> None:
     assert end_local("2025-03-29 13:00") == pd.Timestamp("2025-03-31 00:00", tz="Europe/Berlin")
     # 30 March has only 23 hours; the horizon still ends at local midnight.
     assert end_local("2025-03-30 14:00") == pd.Timestamp("2025-04-01 00:00", tz="Europe/Berlin")
+
+
+def test_appliances_keep_their_daily_energy_and_window() -> None:
+    year, cfg = inputs_for("2024-01-01", "2024-12-31")
+    timer, _ = inputs_for("2024-01-01", "2024-12-31",
+                          overrides=(("household.appliances.shifting", "timer"),))
+    assert abs(timer["household_kw"].sum() - year["household_kw"].sum()) < 1e-6
+    year_midday = np.isin(timer.index.tz_convert("Europe/Berlin").hour,
+                          cfg.household.appliances.timer_hours)
+    assert timer["household_kw"][year_midday].sum() > year["household_kw"][year_midday].sum()
+
+    base, _ = inputs_for()
+
+    shifted, shifted_cfg = inputs_for(overrides=(("household.appliances.shifting", "optimised"),))
+    result = run_scenario(BY_KEY["S5"], shifted, shifted_cfg)
+    flows = result["flows"]
+    assert result["solver_fallbacks"] == 0
+    assert _balance_error(flows) < TOL
+    # Equal up to the partial local days at the window's edges.
+    assert abs(flows["household_kw"].sum() / base["household_kw"].sum() - 1.0) < 0.005
+    appliance = flows["household_kw"] - shifted["household_kw"]
+    outside = shifted["app_window"] == 0
+    assert appliance[outside].abs().max() < TOL
+    # With PV and a dynamic tariff, appliance energy moves into the sunny hours.
+    sunny = shifted["pv_kw"] > 0.2
+    assert appliance[sunny].sum() / appliance.sum() > \
+        base["household_kw"][sunny].sum() / base["household_kw"].sum()

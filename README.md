@@ -32,6 +32,10 @@ whose consumption was measured.
   18 ct/kWh). A 5 kWh battery then breaks even at about €480/kWh.
 - **Better forecasts would add €58 a year, full exchange trading at most €166 more.** Both are
   upper bounds. Trading assumes fees on stored and re-exported power were waived.
+- **Running the dishwasher, washing machine and dryer around midday is worth about €60–70 a
+  year without a battery**, as much as smart heat-pump control, for the price of a start-delay
+  button. With a battery it adds only €15–25, because the battery already moves solar power into
+  the evening. Letting the optimiser time the appliances does no better than the simple habit.
 - **The results hold for 27 households with measured consumption, and the battery looks weaker
   still.** PV pays in 26 of them and PV with a dynamic tariff in all 27. A 5 kWh battery breaks
   even at a median €276/kWh, partly because real household load is hard to forecast
@@ -72,6 +76,13 @@ perfect forecasts it would be €175. Four things cap it for this house:
   negative-price hours in 2025 fall when the roof already produces more than the house uses, so
   the battery is filled with free solar power anyway. Because the fixed charges remain, the
   dynamic tariff still cost 22.3 ct/kWh on average in those hours.
+
+Shifting household appliances is a cheap lever the same limits do not cap. If 600 kWh a year
+(dishwasher, washing machine, dryer) are started between 11:00 and 15:00 instead of when they
+usually run, PV on the fixed tariff saves €71 more a year, PV with the dynamic tariff and smart
+heat pump €57 more. With a 10 kWh battery the habit adds €16, and an optimiser that picks the
+hours for the appliances adds €58 without a battery and €12 with one, so it is not better than
+the habit.
 
 Control matters more where one of these limits is lifted. After the planned feed-in reform,
 exports are paid at market prices and the battery can time them: the optimised setup then costs

@@ -28,6 +28,7 @@ class Setpoints:
     # Planned upper limits from the optimiser; None means no limit beyond the totals.
     grid_charge_kw: float | None = None      # charging from the grid at the retail price
     export_discharge_kw: float | None = None  # discharging into the grid
+    appliance_kw: float = 0.0                 # shiftable appliances ("optimised" mode)
 
 
 @dataclass
@@ -37,6 +38,7 @@ class State:
     tank_kwh: float
     grid_charged_kwh: float = 0.0
     trade_soc_kwh: float = 0.0  # energy bought on the exchange, reserved for resale (S7)
+    appliance_left_kwh: float = 0.0  # shiftable appliance energy still to run today
 
 
 @dataclass
@@ -56,6 +58,7 @@ class Household:
     tank_retention: float
     hp_thermal_kw: float
     export_cap_kw: float | None
+    appliances_flexible: bool = False   # the controller chooses when the appliances run
     extras: dict = field(default_factory=dict)
 
     @classmethod
@@ -82,6 +85,7 @@ class Household:
             tank_retention=1.0 - cfg.hot_water_tank.loss_per_hour,
             hp_thermal_kw=cfg.heat_pump.thermal_capacity_kw,
             export_cap_kw=None if cap_share is None else cap_share * cfg.pv.peak_kw,
+            appliances_flexible=cfg.household.appliances.shifting == "optimised",
         )
 
     def initial_state(self) -> State:
@@ -132,7 +136,16 @@ def realise(sp: Setpoints, state: State, hh: Household, actual: dict, export_pri
         deficit = max(lower - building, 0.0)
     building = min(building, upper)  # above the band, surplus heat is vented
 
-    house = actual["household_kw"] + hp_sp + hp_hw
+    # Shiftable appliances run when the controller says, within the day's window;
+    # whatever is left at the window's last hour runs then.
+    appliance = 0.0
+    if hh.appliances_flexible and actual["app_window"]:
+        appliance = min(max(sp.appliance_kw, 0.0), state.appliance_left_kwh)
+        if actual["app_last"]:
+            appliance = state.appliance_left_kwh
+        state.appliance_left_kwh -= appliance
+    household = actual["household_kw"] + appliance
+    house = household + hp_sp + hp_hw
     pv = actual["pv_kw"] if hh.has_pv else 0.0
 
     # Battery power, limited by rating and state of charge.
@@ -194,7 +207,7 @@ def realise(sp: Setpoints, state: State, hh: Household, actual: dict, export_pri
     state.grid_charged_kwh += grid_to_battery
 
     return {
-        "household_kw": actual["household_kw"], "hp_kw": hp_sp + hp_hw, "pv_kw": pv,
+        "household_kw": household, "hp_kw": hp_sp + hp_hw, "pv_kw": pv,
         "pv_self_kw": pv_self, "pv_to_battery_kw": pv_to_battery, "pv_export_kw": pv_export,
         "curtail_kw": curtail, "grid_to_house_kw": grid_to_house,
         "grid_to_battery_kw": grid_to_battery, "battery_to_house_kw": battery_to_house,
@@ -229,6 +242,7 @@ class RuleController:
             hp_space_kw=max(space, 0.0),
             hp_hot_water_kw=max(hot_water, 0.0),
             self_consumption_battery=True,
+            appliance_kw=state.appliance_left_kwh,  # fallback only: run as early as allowed
         )
 
 
@@ -237,6 +251,8 @@ def run(inputs: pd.DataFrame, hh: Household, controller, export_prices: np.ndarr
     rows = []
     records = inputs.to_dict("records")
     for t, actual in enumerate(records):
+        if t == 0 or actual["app_day_start"]:
+            state.appliance_left_kwh = actual["app_day_kwh"]
         setpoints = controller.plan(t, state, inputs)
         rows.append(realise(setpoints, state, hh, actual, float(export_prices[t])))
     return pd.DataFrame(rows, index=inputs.index, columns=list(FLOW_COLUMNS))

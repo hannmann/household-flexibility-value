@@ -14,6 +14,13 @@ household:
   hot_water_heat_kwh_per_year: 2000   # assumed
   measured_house: null                # e.g. "SFH12": measured load from data/wpuq instead of the standard profile
   load_forecast: recent_days          # measured load only: "recent_days" or "perfect"
+  appliances:                         # dishwasher, washing machine and dryer
+    shiftable_kwh_per_year: 600       # assumed: about 250 + 150 + 200 kWh
+    shifting: none                    # "none", "timer" (started around midday) or "optimised"
+    timer_hours: [11, 12, 13, 14]     # local hours used by "timer"
+    earliest_hour: 6                  # "optimised": window in which they may run (local time)
+    latest_hour: 22                   # everything must have run by then
+    max_kw: 2.0                       # combined power of the appliances
 
 building:
   heating_limit_c: 15.0     # outdoor temperature above which no space heating is needed

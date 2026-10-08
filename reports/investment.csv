@@ -19,3 +19,9 @@ battery_0kwh_pv_minus_10pct,S5,"All, optimised on forecasts",0.0,1321.44,11200.0
 battery_0kwh_after_reform,S5,"All, optimised on forecasts",0.0,1244.96,11200.0,1284.97,5458.84,12.0
 battery_5kwh_after_reform,S5,"All, optimised on forecasts",5.0,973.96,14700.0,1555.96,4597.81,15.0
 heat_pump_on_off,S5,"All, optimised on forecasts",10.0,983.32,17700.0,1546.61,238.64,20.0
+appliances_timer,S2,PV,0.0,1329.17,11200.0,1200.76,4257.94,13.0
+appliances_timer,S3,PV + battery,10.0,993.93,17700.0,1536.0,87.33,20.0
+appliances_timer,S5,"All, optimised on forecasts",10.0,939.69,17700.0,1590.24,860.9,19.0
+appliances_optimised,S5,"All, optimised on forecasts",10.0,943.77,17700.0,1586.16,802.72,19.0
+battery_0kwh_appliances_timer,S5,"All, optimised on forecasts",0.0,1186.06,11200.0,1343.87,6298.76,12.0
+battery_0kwh_appliances_optimised,S5,"All, optimised on forecasts",0.0,1185.4,11200.0,1344.53,6308.25,12.0

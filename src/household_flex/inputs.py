@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 
-from . import measured
+from . import appliances, measured
 from .load_profile import household_load_kw
 
 RADIATION_COLUMNS = (
@@ -134,6 +134,7 @@ def build_inputs(snapshot: pd.DataFrame, cfg: SimpleNamespace) -> pd.DataFrame:
     else:
         frame["household_fc_kw"] = frame["household_kw"]
     frame["hot_water_fc_kw"] = frame["hot_water_kw"]
+    appliances.apply(frame, cfg.household.appliances, cfg.location.timezone)
     frame.attrs["forecast_source"] = "weather forecast" if has_forecast else "persistence"
     frame.attrs["loss_kw_per_k"] = loss
     return frame

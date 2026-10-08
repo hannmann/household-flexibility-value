@@ -54,6 +54,8 @@ def run_scenario(scenario: Scenario, inputs: pd.DataFrame, cfg: SimpleNamespace)
     hh = Household.from_config(cfg, inputs.attrs["loss_kw_per_k"], scenario.pv, scenario.battery)
     prices = price_frame(inputs, cfg, scenario.dynamic)
     if scenario.control == "rules":
+        if hh.appliances_flexible:
+            raise ValueError("Optimised appliance shifting needs an optimised scenario")
         controller = RuleController(hh)
     else:
         controller = OptimisingController(

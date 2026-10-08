@@ -20,7 +20,7 @@ from .simulate import Household, RuleController, Setpoints, State
 
 # Flow variables, each with one value per hour of the horizon.
 FLOWS = ("u_load", "u_bat", "u_exp", "curt", "g_load", "g_bat", "d_load", "d_exp",
-         "p_sp", "p_hw", "t_in", "t_out")
+         "p_sp", "p_hw", "t_in", "t_out", "p_app")
 F = {name: k for k, name in enumerate(FLOWS)}
 COMFORT_PENALTY_EUR_PER_KWH = 10.0
 
@@ -58,6 +58,11 @@ class OptimisingController:
         self.p_exp = prices["export"].to_numpy()
         self.spot = prices["spot"].to_numpy()
         self.min_on = cfg.heat_pump.min_on_fraction
+        appliance_day = "app_day_kwh" if perfect_foresight else "app_day_fc_kwh"
+        self.app_day_kwh = inputs[appliance_day].to_numpy()
+        self.app_window = inputs["app_window"].to_numpy() > 0
+        self.app_day_id = inputs["app_day_id"].to_numpy()
+        self.app_max_kw = cfg.household.appliances.max_kw
         self.fallback = RuleController(hh)
         self.failures = 0
 
@@ -101,7 +106,8 @@ class OptimisingController:
         for name in ("u_load", "u_bat", "u_exp", "curt"):
             add(r, f(name), 1.0)
         r = n + hours
-        for name, sign in (("u_load", 1), ("g_load", 1), ("d_load", 1), ("p_sp", -1), ("p_hw", -1)):
+        for name, sign in (("u_load", 1), ("g_load", 1), ("d_load", 1), ("p_sp", -1), ("p_hw", -1),
+                           ("p_app", -1)):
             add(r, f(name), sign)
         r = 2 * n + hours
         add(r, base_soc + hours + 1, 1.0)
@@ -123,9 +129,22 @@ class OptimisingController:
         add(r, base_trade + hours, -1.0)
         add(r, f("t_in"), -eta)
         add(r, f("t_out"), 1.0 / eta)
+        # Shiftable appliances: each local day's energy, within that day's window.
+        b_app = []
+        if hh.appliances_flexible:
+            window = self.app_window[sl]
+            days = self.app_day_id[sl]
+            for day in np.unique(days):
+                in_day = np.flatnonzero((days == day) & window)
+                if in_day.size == 0:
+                    continue
+                energy = (state.appliance_left_kwh if day == days[0]
+                          else float(self.app_day_kwh[t0 + in_day[0]]))
+                add(np.full(in_day.size, 6 * n + len(b_app)), f("p_app")[in_day], 1.0)
+                b_app.append(min(energy, self.app_max_kw * in_day.size))
         a_eq = coo_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))),
-                          shape=(6 * n, n_var)).tocsr()
-        b_eq = np.concatenate([pv, load, np.zeros(n), -space, -hw, np.zeros(n)])
+                          shape=(6 * n + len(b_app), n_var)).tocsr()
+        b_eq = np.concatenate([pv, load, np.zeros(n), -space, -hw, np.zeros(n), b_app])
 
         # Inequalities.
         rows, cols, vals = [], [], []
@@ -180,6 +199,8 @@ class OptimisingController:
         if not (self.trading and hh.has_battery):
             upper[f("t_in")] = 0.0
             upper[f("t_out")] = 0.0
+        upper[f("p_app")] = (self.app_max_kw * self.app_window[sl]
+                             if hh.appliances_flexible else 0.0)
         if not hh.has_battery:
             for name in ("u_bat", "g_bat", "d_load", "d_exp", "t_in", "t_out"):
                 upper[f(name)] = 0.0
@@ -238,4 +259,5 @@ class OptimisingController:
             trade_sell_kw=first("t_out"),
             grid_charge_kw=first("g_bat"),
             export_discharge_kw=first("d_exp"),
+            appliance_kw=first("p_app"),
         )
